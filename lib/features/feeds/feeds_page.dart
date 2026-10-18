@@ -5,8 +5,8 @@ import '../../core/theme/app_dimens.dart';
 import '../../core/utils/formatting.dart';
 import '../../core/widgets/placeholder_empty.dart';
 import '../../data/app_store.dart';
-import '../../data/models/article.dart';
 import '../../data/models/feed.dart';
+import 'feed_articles_page.dart';
 
 /// 订阅管理页：按分组展示订阅源，可添加 / 删除 / 改分组 / 刷新。
 class FeedsPage extends StatelessWidget {
@@ -121,14 +121,17 @@ class FeedsPage extends StatelessWidget {
       }
       items.add(_GroupHeader(name: group, count: feeds.length));
       for (final Feed feed in feeds) {
-        final int unread = store.unreadArticles
-            .where((Article a) => a.feedId == feed.id)
-            .length;
+        final int unread = store.unreadCountOfFeed(feed.id);
         items.add(
           _FeedTile(
             feed: feed,
             unread: unread,
-            onTap: () => _showGroupDialog(context, store, feed),
+            onOpen: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => FeedArticlesPage(feed: feed),
+              ),
+            ),
+            onChangeGroup: () => _showGroupDialog(context, store, feed),
             onDelete: () => store.removeFeed(feed),
           ),
         );
@@ -304,14 +307,16 @@ class _FeedTile extends StatelessWidget {
   const _FeedTile({
     required this.feed,
     required this.unread,
+    required this.onOpen,
+    required this.onChangeGroup,
     required this.onDelete,
-    required this.onTap,
   });
 
   final Feed feed;
   final int unread;
+  final VoidCallback onOpen;
+  final VoidCallback onChangeGroup;
   final VoidCallback onDelete;
-  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -322,7 +327,7 @@ class _FeedTile extends StatelessWidget {
       color: theme.colorScheme.surface,
       borderRadius: BorderRadius.circular(AppRadius.lg),
       child: InkWell(
-        onTap: onTap,
+        onTap: onOpen,
         borderRadius: BorderRadius.circular(AppRadius.lg),
         child: Ink(
           decoration: BoxDecoration(
@@ -388,10 +393,27 @@ class _FeedTile extends StatelessWidget {
                     ),
                   ),
                 ),
-              IconButton(
-                onPressed: onDelete,
-                icon: const Icon(Icons.delete_outline_rounded, size: 20),
-                tooltip: '删除订阅',
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert_rounded, size: 20),
+                tooltip: '更多',
+                onSelected: (String value) {
+                  if (value == 'group') {
+                    onChangeGroup();
+                  } else if (value == 'delete') {
+                    onDelete();
+                  }
+                },
+                itemBuilder: (BuildContext context) =>
+                    const <PopupMenuEntry<String>>[
+                  PopupMenuItem<String>(
+                    value: 'group',
+                    child: Text('修改分组'),
+                  ),
+                  PopupMenuItem<String>(
+                    value: 'delete',
+                    child: Text('删除订阅'),
+                  ),
+                ],
               ),
             ],
           ),

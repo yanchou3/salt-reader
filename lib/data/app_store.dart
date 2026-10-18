@@ -97,6 +97,14 @@ class AppStore extends ChangeNotifier {
 
   List<Article> get unreadArticles =>
       _sorted(_articles.where((Article a) => !a.read).toList());
+  /// 某个订阅源的全部文章（按时间倒序）。
+  List<Article> articlesOfFeed(String feedId) =>
+      _sorted(_articles.where((Article a) => a.feedId == feedId).toList());
+
+  /// 某个订阅源的未读数。
+  int unreadCountOfFeed(String feedId) =>
+      _articles.where((Article a) => a.feedId == feedId && !a.read).length;
+
   List<Article> get allArticles => _sorted(List<Article>.of(_articles));
   List<Article> get starredArticles =>
       _sorted(_articles.where((Article a) => a.starred).toList());
