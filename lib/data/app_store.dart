@@ -31,6 +31,7 @@ class AppStore extends ChangeNotifier {
   static const String _kReaderLine = 'reader_line_height';
   static const String _kReaderWidth = 'reader_max_width';
   static const String _kThemeMode = 'theme_mode';
+  static const String _kAutoFullText = 'auto_full_text';
   static const int _maxArticles = 300;
 
   final Dio _dio = Dio();
@@ -50,6 +51,7 @@ class AppStore extends ChangeNotifier {
   double _readerLineHeight = 1.7;
   double _readerMaxWidth = 720.0;
   ThemeMode _themeMode = ThemeMode.system;
+  bool _autoFetchFullText = true;
 
   bool _loading = false;
   String? _lastError;
@@ -74,6 +76,9 @@ class AppStore extends ChangeNotifier {
   double get readerLineHeight => _readerLineHeight;
   double get readerMaxWidth => _readerMaxWidth;
   ThemeMode get themeMode => _themeMode;
+
+  /// 打开文章时，若正文过短是否自动抓取原文全文。
+  bool get autoFetchFullText => _autoFetchFullText;
 
   /// 分组名列表（未分组优先，其余按名称排序）。
   List<String> get groups {
@@ -171,6 +176,7 @@ class AppStore extends ChangeNotifier {
       _readerLineHeight = prefs.getDouble(_kReaderLine) ?? 1.7;
       _readerMaxWidth = prefs.getDouble(_kReaderWidth) ?? 720.0;
       _themeMode = _themeModeFromString(prefs.getString(_kThemeMode));
+      _autoFetchFullText = prefs.getBool(_kAutoFullText) ?? true;
     } catch (error) {
       _lastError = '读取本地数据失败：$error';
     }
@@ -208,6 +214,7 @@ class AppStore extends ChangeNotifier {
     await prefs.setDouble(_kReaderLine, _readerLineHeight);
     await prefs.setDouble(_kReaderWidth, _readerMaxWidth);
     await prefs.setString(_kThemeMode, _themeMode.name);
+    await prefs.setBool(_kAutoFullText, _autoFetchFullText);
   }
 
   /// 添加订阅：先抓取验证，成功才入库。
@@ -576,6 +583,12 @@ class AppStore extends ChangeNotifier {
       _fetchingFullText = false;
       notifyListeners();
     }
+  }
+
+  Future<void> saveAutoFetchFullText(bool value) async {
+    _autoFetchFullText = value;
+    await _persist();
+    notifyListeners();
   }
 
   Future<void> saveThemeMode(ThemeMode mode) async {

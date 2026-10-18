@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimens.dart';
 import '../../core/utils/formatting.dart';
+import '../../core/utils/html_utils.dart';
 import '../../data/app_store.dart';
 import '../../data/models/article.dart';
 
@@ -19,13 +20,38 @@ class ArticleReaderPage extends StatefulWidget {
 }
 
 class _ArticleReaderPageState extends State<ArticleReaderPage> {
+  String? _renderedSource;
+  String? _renderedHtml;
+
+  /// 渲染前把相对路径补全为绝对路径（图片 / 链接），并按 body 做缓存。
+  String _renderBody(String body, String? baseUrl) {
+    if (_renderedSource == body && _renderedHtml != null) {
+      return _renderedHtml!;
+    }
+    _renderedSource = body;
+    _renderedHtml = resolveRelativeUrls(body, baseUrl);
+    return _renderedHtml!;
+  }
+
   @override
   void initState() {
     super.initState();
     // 打开即标记已读；放到首帧之后，避免在构建期间触发通知。
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && !widget.article.read) {
-        AppStore.instance.setRead(widget.article, true);
+      if (!mounted) {
+        return;
+      }
+      final AppStore store = AppStore.instance;
+      if (!widget.article.read) {
+        store.setRead(widget.article, true);
+      }
+      // 默认自动抓取全文：正文过短且有原文链接时。
+      final String? link = widget.article.link;
+      if (store.autoFetchFullText &&
+          link != null &&
+          link.isNotEmpty &&
+          widget.article.summary.length < 400) {
+        store.fetchFullText(widget.article);
       }
     });
   }
@@ -131,7 +157,7 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> {
                       const SizedBox(height: AppSpacing.xl),
                       Divider(color: theme.colorScheme.outline),
                       const SizedBox(height: AppSpacing.xl),
-                      if (_shouldOfferFullText(article, body))
+                      if (_shouldOfferFullText(article))
                         _FullTextHint(
                           fetching: store.fetchingFullText,
                           onFetch: () => _fetchFull(store, article),
@@ -144,7 +170,10 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> {
                               theme.textTheme.bodyMedium?.copyWith(color: subtle),
                         )
                       else
-                        HtmlWidget(body, textStyle: bodyStyle),
+                        HtmlWidget(
+                          _renderBody(body, article.link),
+                          textStyle: bodyStyle,
+                        ),
                     ],
                   ),
                 ),
@@ -157,12 +186,12 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> {
   }
 
   /// 正文太短（多半只是摘要）且有原文链接时，提示抓取全文。
-  bool _shouldOfferFullText(Article article, String body) {
+  bool _shouldOfferFullText(Article article) {
     final String? link = article.link;
     if (link == null || link.isEmpty) {
       return false;
     }
-    return stripHtml(body).length < 400;
+    return article.summary.length < 400;
   }
 
   Future<void> _fetchFull(AppStore store, Article article) async {

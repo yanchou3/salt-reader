@@ -48,6 +48,16 @@ class SettingsPage extends StatelessWidget {
                   subtitle: _themeModeLabel(store.themeMode),
                   onTap: () => _showThemeDialog(context, store),
                 ),
+                SwitchListTile(
+                  secondary: const Icon(Icons.download_rounded),
+                  title: const Text('自动抓取全文'),
+                  subtitle: const Text('打开只给摘要的文章时，自动抓取原文正文'),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm,
+                  ),
+                  value: store.autoFetchFullText,
+                  onChanged: store.saveAutoFetchFullText,
+                ),
                 const SizedBox(height: AppSpacing.xl),
                 const _SectionLabel('数据'),
                 _SettingTile(
