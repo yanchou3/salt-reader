@@ -47,45 +47,47 @@ class _AppShellState extends State<AppShell> {
           AppSpacing.lg,
           AppSpacing.md,
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(AppRadius.xl),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: surface.withValues(alpha: 0.78),
-                borderRadius: BorderRadius.circular(AppRadius.xl),
-                border: Border.all(
-                  color: outline.withValues(alpha: 0.7),
+        child: RepaintBoundary(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(AppRadius.xl),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: surface.withValues(alpha: 0.78),
+                  borderRadius: BorderRadius.circular(AppRadius.xl),
+                  border: Border.all(
+                    color: outline.withValues(alpha: 0.7),
+                  ),
+                  boxShadow: isDark ? AppShadows.softDark : AppShadows.soft,
                 ),
-                boxShadow: isDark ? AppShadows.softDark : AppShadows.soft,
-              ),
-              child: NavigationBar(
-                backgroundColor: Colors.transparent,
-                elevation: 0,
-                selectedIndex: _index,
-                onDestinationSelected: (int i) => setState(() => _index = i),
-                destinations: const <NavigationDestination>[
-                  NavigationDestination(
-                    icon: Icon(Icons.inbox_outlined),
-                    selectedIcon: Icon(Icons.inbox_rounded),
-                    label: '未读',
-                  ),
-                  NavigationDestination(
-                    icon: Icon(Icons.rss_feed),
-                    label: '订阅',
-                  ),
-                  NavigationDestination(
-                    icon: Icon(Icons.bookmark_outline),
-                    selectedIcon: Icon(Icons.bookmark),
-                    label: '收藏',
-                  ),
-                  NavigationDestination(
-                    icon: Icon(Icons.settings_outlined),
-                    selectedIcon: Icon(Icons.settings),
-                    label: '设置',
-                  ),
-                ],
+                child: NavigationBar(
+                  backgroundColor: Colors.transparent,
+                  elevation: 0,
+                  selectedIndex: _index,
+                  onDestinationSelected: (int i) => setState(() => _index = i),
+                  destinations: const <NavigationDestination>[
+                    NavigationDestination(
+                      icon: Icon(Icons.inbox_outlined),
+                      selectedIcon: Icon(Icons.inbox_rounded),
+                      label: '未读',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.rss_feed),
+                      label: '订阅',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.bookmark_outline),
+                      selectedIcon: Icon(Icons.bookmark),
+                      label: '收藏',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.settings_outlined),
+                      selectedIcon: Icon(Icons.settings),
+                      label: '设置',
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

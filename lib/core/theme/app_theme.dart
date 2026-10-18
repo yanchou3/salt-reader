@@ -107,6 +107,30 @@ class AppTheme {
           borderRadius: BorderRadius.circular(AppRadius.md),
         ),
       ),
+      chipTheme: ChipThemeData(
+        backgroundColor: surfaceAlt,
+        selectedColor: AppColors.accent.withValues(alpha: 0.12),
+        side: BorderSide.none,
+        shape: const StadiumBorder(),
+        showCheckmark: false,
+        labelPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+      ),
+      segmentedButtonTheme: SegmentedButtonThemeData(
+        style: ButtonStyle(
+          backgroundColor:
+              WidgetStateProperty.resolveWith((Set<WidgetState> states) {
+            return states.contains(WidgetState.selected)
+                ? AppColors.accent.withValues(alpha: 0.12)
+                : Colors.transparent;
+          }),
+          foregroundColor:
+              WidgetStateProperty.resolveWith((Set<WidgetState> states) {
+            return states.contains(WidgetState.selected)
+                ? AppColors.accent
+                : textSecondary;
+          }),
+        ),
+      ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(foregroundColor: AppColors.accent),
       ),

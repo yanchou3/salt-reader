@@ -57,6 +57,17 @@ class AppStore extends ChangeNotifier {
   String? _lastError;
   bool _fetchingFullText = false;
 
+  /// 派生数据（排序 / 筛选 / 分组 / 计数）的记忆化缓存。
+  /// 每次数据变更自增 [_revision]，所有 build 共用同一份结果，避免每帧重算。
+  int _revision = 0;
+
+  void _bump() {
+    _revision++;
+    notifyListeners();
+  }
+
+  int get revision => _revision;
+
   bool get fetchingFullText => _fetchingFullText;
 
   List<Feed> get feeds => List<Feed>.unmodifiable(_feeds);
@@ -80,40 +91,96 @@ class AppStore extends ChangeNotifier {
   /// 打开文章时，若正文过短是否自动抓取原文全文。
   bool get autoFetchFullText => _autoFetchFullText;
 
+  // ---- 派生数据记忆化 ----
+  int _derivedRevision = -1;
+  List<Article> _cachedAll = const <Article>[];
+  List<Article> _cachedUnread = const <Article>[];
+  List<Article> _cachedStarred = const <Article>[];
+  List<String> _cachedGroups = const <String>[];
+  Map<String, Feed> _feedById = const <String, Feed>{};
+  Map<String, List<Article>> _articlesByFeed = const <String, List<Article>>{};
+  Map<String, int> _unreadByFeed = const <String, int>{};
+
+  /// 仅在数据真正变化时重算一次所有派生列表。
+  void _ensureDerived() {
+    if (_derivedRevision == _revision) {
+      return;
+    }
+    _derivedRevision = _revision;
+
+    final List<Article> sorted = _sorted(List<Article>.of(_articles));
+    final List<Article> unread = <Article>[];
+    final List<Article> starred = <Article>[];
+    final Map<String, List<Article>> byFeed =
+        <String, List<Article>>{};
+    final Map<String, int> unreadCount = <String, int>{};
+    for (final Article a in sorted) {
+      if (!a.read) {
+        unread.add(a);
+        unreadCount[a.feedId] = (unreadCount[a.feedId] ?? 0) + 1;
+      }
+      if (a.starred) {
+        starred.add(a);
+      }
+      (byFeed[a.feedId] ??= <Article>[]).add(a);
+    }
+    _cachedAll = sorted;
+    _cachedUnread = unread;
+    _cachedStarred = starred;
+    _articlesByFeed = byFeed;
+    _unreadByFeed = unreadCount;
+    _feedById = <String, Feed>{
+      for (final Feed f in _feeds) f.id: f,
+    };
+
+    final Set<String> names = _feeds.map((Feed f) => f.group).toSet();
+    final List<String> groups = names.toList()..sort();
+    if (groups.remove(Feed.defaultGroup)) {
+      groups.insert(0, Feed.defaultGroup);
+    }
+    _cachedGroups = groups;
+  }
+
   /// 分组名列表（未分组优先，其余按名称排序）。
   List<String> get groups {
-    final Set<String> names = _feeds.map((Feed f) => f.group).toSet();
-    final List<String> list = names.toList()..sort();
-    if (list.remove(Feed.defaultGroup)) {
-      list.insert(0, Feed.defaultGroup);
-    }
-    return list;
+    _ensureDerived();
+    return _cachedGroups;
   }
 
   /// 某篇文章所属订阅源的分组名。
   String groupOfFeed(String feedId) {
-    for (final Feed feed in _feeds) {
-      if (feed.id == feedId) {
-        return feed.group;
-      }
-    }
-    return Feed.defaultGroup;
+    _ensureDerived();
+    return _feedById[feedId]?.group ?? Feed.defaultGroup;
   }
 
-  List<Article> get unreadArticles =>
-      _sorted(_articles.where((Article a) => !a.read).toList());
+  List<Article> get unreadArticles {
+    _ensureDerived();
+    return _cachedUnread;
+  }
+
   /// 某个订阅源的全部文章（按时间倒序）。
-  List<Article> articlesOfFeed(String feedId) =>
-      _sorted(_articles.where((Article a) => a.feedId == feedId).toList());
+  List<Article> articlesOfFeed(String feedId) {
+    _ensureDerived();
+    return _articlesByFeed[feedId] ?? const <Article>[];
+  }
 
   /// 某个订阅源的未读数。
-  int unreadCountOfFeed(String feedId) =>
-      _articles.where((Article a) => a.feedId == feedId && !a.read).length;
+  int unreadCountOfFeed(String feedId) {
+    _ensureDerived();
+    return _unreadByFeed[feedId] ?? 0;
+  }
 
-  List<Article> get allArticles => _sorted(List<Article>.of(_articles));
-  List<Article> get starredArticles =>
-      _sorted(_articles.where((Article a) => a.starred).toList());
-  int get unreadCount => _articles.where((Article a) => !a.read).length;
+  List<Article> get allArticles {
+    _ensureDerived();
+    return _cachedAll;
+  }
+
+  List<Article> get starredArticles {
+    _ensureDerived();
+    return _cachedStarred;
+  }
+
+  int get unreadCount => unreadArticles.length;
 
   List<Article> _sorted(List<Article> list) {
     list.sort((Article a, Article b) {
@@ -180,7 +247,7 @@ class AppStore extends ChangeNotifier {
     } catch (error) {
       _lastError = '读取本地数据失败：$error';
     }
-    notifyListeners();
+    _bump();
   }
 
   Future<void> _persist() async {
@@ -222,12 +289,12 @@ class AppStore extends ChangeNotifier {
     final String normalized = _normalize(url);
     if (normalized.isEmpty) {
       _lastError = '请输入订阅地址';
-      notifyListeners();
+      _bump();
       return;
     }
     if (_feeds.any((Feed f) => f.url == normalized)) {
       _lastError = '这个订阅已经存在了';
-      notifyListeners();
+      _bump();
       return;
     }
 
@@ -240,7 +307,7 @@ class AppStore extends ChangeNotifier {
 
     _loading = true;
     _lastError = null;
-    notifyListeners();
+    _bump();
     try {
       final FetchedFeed fetched = await _fetcher.fetch(feed);
       feed.title =
@@ -253,7 +320,7 @@ class AppStore extends ChangeNotifier {
       _lastError = '订阅失败：${_describe(error)}';
     } finally {
       _loading = false;
-      notifyListeners();
+      _bump();
       await _persist();
     }
   }
@@ -265,7 +332,7 @@ class AppStore extends ChangeNotifier {
     }
     _loading = true;
     _lastError = null;
-    notifyListeners();
+    _bump();
     int added = 0;
     final List<String> failed = <String>[];
     for (final OpmlEntry entry in entries) {
@@ -295,7 +362,7 @@ class AppStore extends ChangeNotifier {
     _loading = false;
     _lastError =
         failed.isEmpty ? null : '${failed.length} 个源导入失败：${failed.join('、')}';
-    notifyListeners();
+    _bump();
     await _persist();
     return added;
   }
@@ -306,7 +373,7 @@ class AppStore extends ChangeNotifier {
     }
     _loading = true;
     _lastError = null;
-    notifyListeners();
+    _bump();
     final List<String> failed = <String>[];
     for (final Feed feed in _feeds) {
       try {
@@ -323,7 +390,7 @@ class AppStore extends ChangeNotifier {
     }
     _loading = false;
     _lastError = failed.isEmpty ? null : '刷新失败：${failed.join('、')}';
-    notifyListeners();
+    _bump();
     await _persist();
   }
 
@@ -334,7 +401,7 @@ class AppStore extends ChangeNotifier {
     _deletedFeeds.add(
       DeletedFeed(id: feed.id, url: feed.url, deletedAt: DateTime.now()),
     );
-    notifyListeners();
+    _bump();
     _persist();
   }
 
@@ -358,7 +425,7 @@ class AppStore extends ChangeNotifier {
     final Article target = _find(article);
     target.read = value;
     _stateTimestamps[target.id] = DateTime.now().millisecondsSinceEpoch;
-    notifyListeners();
+    _bump();
     _persist();
   }
 
@@ -366,7 +433,7 @@ class AppStore extends ChangeNotifier {
     final Article target = _find(article);
     target.starred = !target.starred;
     _stateTimestamps[target.id] = DateTime.now().millisecondsSinceEpoch;
-    notifyListeners();
+    _bump();
     _persist();
   }
 
@@ -374,7 +441,7 @@ class AppStore extends ChangeNotifier {
     for (final Article article in _articles) {
       article.read = true;
     }
-    notifyListeners();
+    _bump();
     _persist();
   }
 
@@ -387,7 +454,7 @@ class AppStore extends ChangeNotifier {
     _webdavUser = user;
     _webdavPassword = password;
     await _persist();
-    notifyListeners();
+    _bump();
   }
 
   /// 与坚果云 WebDAV 做一次双向同步（LWW + 删除墓碑）。
@@ -403,7 +470,7 @@ class AppStore extends ChangeNotifier {
 
     _loading = true;
     _lastError = null;
-    notifyListeners();
+    _bump();
     try {
       await client.ensureDir('RSSReader');
       await client.ensureDir('RSSReader/sync');
@@ -531,7 +598,7 @@ class AppStore extends ChangeNotifier {
       return _lastError!;
     } finally {
       _loading = false;
-      notifyListeners();
+      _bump();
     }
   }
 
@@ -550,7 +617,7 @@ class AppStore extends ChangeNotifier {
       _readerMaxWidth = maxWidth;
     }
     await _persist();
-    notifyListeners();
+    _bump();
   }
 
   /// 抓取原文页面并提取正文（订阅源只给摘要时使用）。
@@ -558,7 +625,7 @@ class AppStore extends ChangeNotifier {
     final String? link = article.link;
     if (link == null || link.isEmpty) {
       _lastError = '这篇文章没有原文链接';
-      notifyListeners();
+      _bump();
       return false;
     }
     if (_fetchingFullText) {
@@ -566,7 +633,7 @@ class AppStore extends ChangeNotifier {
     }
     _fetchingFullText = true;
     _lastError = null;
-    notifyListeners();
+    _bump();
     try {
       final String? html = await _readable.extractMainHtml(link);
       if (html == null || html.isEmpty) {
@@ -581,20 +648,20 @@ class AppStore extends ChangeNotifier {
       return false;
     } finally {
       _fetchingFullText = false;
-      notifyListeners();
+      _bump();
     }
   }
 
   Future<void> saveAutoFetchFullText(bool value) async {
     _autoFetchFullText = value;
     await _persist();
-    notifyListeners();
+    _bump();
   }
 
   Future<void> saveThemeMode(ThemeMode mode) async {
     _themeMode = mode;
     await _persist();
-    notifyListeners();
+    _bump();
   }
 
   ThemeMode _themeModeFromString(String? value) {
@@ -620,7 +687,7 @@ class AppStore extends ChangeNotifier {
         ..group = normalized
         ..updatedAt = DateTime.now();
     }
-    notifyListeners();
+    _bump();
     _persist();
   }
 

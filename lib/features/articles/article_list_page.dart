@@ -180,7 +180,7 @@ class _ArticleListPageState extends State<ArticleListPage> {
                   ),
                 if (!_searching && filters.length > 1)
                   SizedBox(
-                    height: 36,
+                    height: 40,
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
                       padding: const EdgeInsets.symmetric(
@@ -195,20 +195,15 @@ class _ArticleListPageState extends State<ArticleListPage> {
                         return ChoiceChip(
                           label: Text(name),
                           selected: selected,
-                          onSelected: (_) =>
-                              setState(() => _filter = name),
-                          showCheckmark: false,
+                          onSelected: (_) => setState(() => _filter = name),
                           labelStyle: TextStyle(
                             fontSize: 13,
-                            fontWeight: FontWeight.w500,
+                            fontWeight:
+                                selected ? FontWeight.w600 : FontWeight.w500,
                             color: selected
                                 ? AppColors.accent
                                 : theme.colorScheme.onSurfaceVariant,
                           ),
-                          selectedColor:
-                              AppColors.accent.withValues(alpha: 0.12),
-                          backgroundColor: Colors.transparent,
-                          side: BorderSide(color: theme.colorScheme.outline),
                         );
                       },
                     ),

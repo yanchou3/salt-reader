@@ -29,7 +29,7 @@ class ArticleCard extends StatelessWidget {
 
     return RepaintBoundary(
       child: Material(
-        color: theme.colorScheme.surface,
+        color: Colors.transparent,
         borderRadius: BorderRadius.circular(AppRadius.lg),
         child: InkWell(
           onTap: onTap,
@@ -38,27 +38,21 @@ class ArticleCard extends StatelessWidget {
           child: Ink(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(AppRadius.lg),
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: isDark
-                    ? <Color>[
-                        AppColors.darkSurface,
-                        AppColors.darkSurfaceAlt,
-                      ]
-                    : <Color>[
-                        AppColors.lightSurface,
-                        const Color(0xFFFBFBFC),
-                      ],
-              ),
+              color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
               border: Border.all(
-                color: isDark
-                    ? AppColors.darkOutline
-                    : AppColors.lightOutline,
+                color: (isDark
+                        ? AppColors.darkOutline
+                        : AppColors.lightOutline)
+                    .withValues(alpha: isDark ? 1 : 0.7),
               ),
               boxShadow: isDark ? AppShadows.softDark : AppShadows.soft,
             ),
-            padding: const EdgeInsets.all(AppSpacing.lg),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              AppSpacing.md + 2,
+              AppSpacing.lg,
+              AppSpacing.lg,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
