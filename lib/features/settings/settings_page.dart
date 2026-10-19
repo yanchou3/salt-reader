@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimens.dart';
+import '../../core/theme/reader_fonts.dart';
 import '../../data/app_store.dart';
 import '../../services/opml_service.dart';
 
@@ -37,9 +38,9 @@ class SettingsPage extends StatelessWidget {
                 const _SectionLabel('阅读'),
                 _SettingTile(
                   icon: Icons.text_fields_rounded,
-                  title: '字号与行距',
+                  title: '阅读排版',
                   subtitle:
-                      '字号 ${store.readerFontScale.toStringAsFixed(2)}× · 行距 ${store.readerLineHeight.toStringAsFixed(1)} · 栏宽 ${store.readerMaxWidth.round()}',
+                      '${store.readerFont.label} · 字号 ${store.readerFontScale.toStringAsFixed(2)}× · 行距 ${store.readerLineHeight.toStringAsFixed(1)} · 栏宽 ${store.readerMaxWidth.round()}',
                   onTap: () => _showReaderPrefsDialog(context, store),
                 ),
                 _SettingTile(
@@ -158,6 +159,7 @@ class SettingsPage extends StatelessWidget {
     double fontScale = store.readerFontScale;
     double lineHeight = store.readerLineHeight;
     double maxWidth = store.readerMaxWidth;
+    ReaderFont font = store.readerFont;
 
     await showDialog<void>(
       context: context,
@@ -165,7 +167,7 @@ class SettingsPage extends StatelessWidget {
         builder: (BuildContext context, StateSetter setLocal) {
           final ThemeData theme = Theme.of(context);
           return AlertDialog(
-            title: const Text('字号与行距'),
+            title: const Text('阅读排版'),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -178,7 +180,26 @@ class SettingsPage extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 16 * fontScale,
                       height: lineHeight,
+                      fontFamily: font.family,
                     ),
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                  Text('字体', style: theme.textTheme.labelMedium),
+                  const SizedBox(height: AppSpacing.sm),
+                  Wrap(
+                    spacing: AppSpacing.sm,
+                    runSpacing: AppSpacing.sm,
+                    children: <Widget>[
+                      for (final ReaderFont option in ReaderFont.values)
+                        ChoiceChip(
+                          label: Text(
+                            option.label,
+                            style: TextStyle(fontFamily: option.family),
+                          ),
+                          selected: font == option,
+                          onSelected: (_) => setLocal(() => font = option),
+                        ),
+                    ],
                   ),
                   const SizedBox(height: AppSpacing.lg),
                   _prefSlider(
@@ -212,6 +233,7 @@ class SettingsPage extends StatelessWidget {
                     fontScale: fontScale,
                     lineHeight: lineHeight,
                     maxWidth: maxWidth,
+                    font: font,
                   );
                   if (dialogContext.mounted) {
                     Navigator.of(dialogContext).pop();

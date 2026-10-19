@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../core/theme/reader_fonts.dart';
 import '../services/feed_fetcher.dart';
 import '../services/opml_service.dart';
 import '../services/readable_service.dart';
@@ -30,6 +31,7 @@ class AppStore extends ChangeNotifier {
   static const String _kReaderFont = 'reader_font_scale';
   static const String _kReaderLine = 'reader_line_height';
   static const String _kReaderWidth = 'reader_max_width';
+  static const String _kReaderFontFamily = 'reader_font_family';
   static const String _kThemeMode = 'theme_mode';
   static const String _kAutoFullText = 'auto_full_text';
   static const int _maxArticles = 300;
@@ -50,6 +52,7 @@ class AppStore extends ChangeNotifier {
   double _readerFontScale = 1.0;
   double _readerLineHeight = 1.7;
   double _readerMaxWidth = 720.0;
+  ReaderFont _readerFont = ReaderFont.system;
   ThemeMode _themeMode = ThemeMode.system;
   bool _autoFetchFullText = true;
 
@@ -86,6 +89,9 @@ class AppStore extends ChangeNotifier {
   double get readerFontScale => _readerFontScale;
   double get readerLineHeight => _readerLineHeight;
   double get readerMaxWidth => _readerMaxWidth;
+
+  /// 正文字体方案。
+  ReaderFont get readerFont => _readerFont;
   ThemeMode get themeMode => _themeMode;
 
   /// 打开文章时，若正文过短是否自动抓取原文全文。
@@ -242,6 +248,7 @@ class AppStore extends ChangeNotifier {
       _readerFontScale = prefs.getDouble(_kReaderFont) ?? 1.0;
       _readerLineHeight = prefs.getDouble(_kReaderLine) ?? 1.7;
       _readerMaxWidth = prefs.getDouble(_kReaderWidth) ?? 720.0;
+      _readerFont = ReaderFont.fromName(prefs.getString(_kReaderFontFamily));
       _themeMode = _themeModeFromString(prefs.getString(_kThemeMode));
       _autoFetchFullText = prefs.getBool(_kAutoFullText) ?? true;
     } catch (error) {
@@ -280,6 +287,7 @@ class AppStore extends ChangeNotifier {
     await prefs.setDouble(_kReaderFont, _readerFontScale);
     await prefs.setDouble(_kReaderLine, _readerLineHeight);
     await prefs.setDouble(_kReaderWidth, _readerMaxWidth);
+    await prefs.setString(_kReaderFontFamily, _readerFont.name);
     await prefs.setString(_kThemeMode, _themeMode.name);
     await prefs.setBool(_kAutoFullText, _autoFetchFullText);
   }
@@ -606,6 +614,7 @@ class AppStore extends ChangeNotifier {
     double? fontScale,
     double? lineHeight,
     double? maxWidth,
+    ReaderFont? font,
   }) async {
     if (fontScale != null) {
       _readerFontScale = fontScale;
@@ -615,6 +624,9 @@ class AppStore extends ChangeNotifier {
     }
     if (maxWidth != null) {
       _readerMaxWidth = maxWidth;
+    }
+    if (font != null) {
+      _readerFont = font;
     }
     await _persist();
     _bump();

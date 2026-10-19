@@ -4,8 +4,10 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimens.dart';
+import '../../core/theme/reader_fonts.dart';
 import '../../core/utils/formatting.dart';
 import '../../core/utils/html_utils.dart';
+import '../../core/widgets/header_image.dart';
 import '../../data/app_store.dart';
 import '../../data/models/article.dart';
 
@@ -28,14 +30,38 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> {
   String? _htmlCacheKey;
   Widget? _cachedHtml;
 
+  /// 图片请求统一用浏览器 UA，并带上 [Referer] 以绕过 CDN 反盗链。
+  static const String _imageUserAgent =
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+      '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
+  /// 由原文链接推导站点来源，作为图片请求的 Referer。
+  String? _refererOf(String? link) {
+    final String? raw = link?.trim();
+    if (raw == null || raw.isEmpty) {
+      return null;
+    }
+    final Uri? uri = Uri.tryParse(raw);
+    if (uri == null || !uri.hasScheme || uri.host.isEmpty) {
+      return null;
+    }
+    return '${uri.scheme}://${uri.host}/';
+  }
+
   Widget _htmlWidget(String body, String? baseUrl, TextStyle style) {
     final String key = '${body.hashCode}|${baseUrl ?? ''}'
-        '|${style.fontSize}|${style.height}';
+        '|${style.fontSize}|${style.height}|${style.fontFamily ?? ''}';
     if (_htmlCacheKey == key && _cachedHtml != null) {
       return _cachedHtml!;
     }
-    final Widget widget =
-        HtmlWidget(_renderBody(body, baseUrl), textStyle: style);
+    final Widget widget = HtmlWidget(
+      _renderBody(body, baseUrl),
+      textStyle: style,
+      factoryBuilder: () => HeaderImageWidgetFactory(
+        referer: _refererOf(baseUrl),
+        userAgent: _imageUserAgent,
+      ),
+    );
     _htmlCacheKey = key;
     _cachedHtml = widget;
     return widget;
@@ -91,6 +117,7 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> {
             (theme.textTheme.bodyLarge ?? const TextStyle()).copyWith(
           fontSize: 16 * store.readerFontScale,
           height: store.readerLineHeight,
+          fontFamily: store.readerFont.family,
         );
 
         return Scaffold(
@@ -122,7 +149,7 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> {
               IconButton(
                 icon: const Icon(Icons.text_format_rounded, size: 22),
                 onPressed: () => _showQuickTypeSettings(context, store),
-                tooltip: '字号与行距',
+                tooltip: '字体与排版',
               ),
               if ((article.link ?? '').isNotEmpty)
                 IconButton(
@@ -241,16 +268,18 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> {
     }
   }
 
-  /// 阅读页内的快捷排版调整。
+  /// 阅读页内的快捷排版调整：字体 / 字号 / 行距。
   void _showQuickTypeSettings(BuildContext context, AppStore store) {
     double fontScale = store.readerFontScale;
     double lineHeight = store.readerLineHeight;
+    ReaderFont font = store.readerFont;
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
       builder: (BuildContext sheetContext) => StatefulBuilder(
         builder: (BuildContext context, StateSetter setLocal) {
-          return Padding(
+          final ThemeData theme = Theme.of(context);
+          return SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(
               AppSpacing.xl,
               0,
@@ -261,8 +290,35 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text('排版', style: Theme.of(context).textTheme.titleMedium),
+                Text('排版', style: theme.textTheme.titleMedium),
                 const SizedBox(height: AppSpacing.lg),
+                Text('字体', style: theme.textTheme.labelMedium),
+                const SizedBox(height: AppSpacing.sm),
+                Wrap(
+                  spacing: AppSpacing.sm,
+                  runSpacing: AppSpacing.sm,
+                  children: <Widget>[
+                    for (final ReaderFont option in ReaderFont.values)
+                      ChoiceChip(
+                        label: Text(
+                          option.label,
+                          style: TextStyle(fontFamily: option.family),
+                        ),
+                        selected: font == option,
+                        onSelected: (_) => setLocal(() => font = option),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                Text(
+                  '阅读工具的价值，不在于让你读得更多，而在于让你读得更从容。',
+                  style: TextStyle(
+                    fontSize: 16 * fontScale,
+                    height: lineHeight,
+                    fontFamily: font.family,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
                 _prefSlider(
                   '字号',
                   fontScale,
@@ -285,6 +341,7 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> {
                       store.saveReaderPrefs(
                         fontScale: fontScale,
                         lineHeight: lineHeight,
+                        font: font,
                       );
                       Navigator.of(sheetContext).pop();
                     },
