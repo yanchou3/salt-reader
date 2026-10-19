@@ -45,7 +45,7 @@ class ArticleCard extends StatelessWidget {
                         : AppColors.lightOutline)
                     .withValues(alpha: isDark ? 1 : 0.7),
               ),
-              boxShadow: isDark ? AppShadows.softDark : AppShadows.soft,
+              boxShadow: isDark ? AppShadows.cardDark : AppShadows.card,
             ),
             padding: const EdgeInsets.fromLTRB(
               AppSpacing.lg,
@@ -99,7 +99,11 @@ class ArticleCard extends StatelessWidget {
                 const SizedBox(height: AppSpacing.md),
                 Text(
                   article.title,
-                  style: theme.textTheme.titleMedium,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: article.read
+                        ? theme.colorScheme.onSurface.withValues(alpha: 0.58)
+                        : null,
+                  ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),

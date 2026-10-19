@@ -23,6 +23,24 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> {
   String? _renderedSource;
   String? _renderedHtml;
 
+  /// 已解析的正文组件缓存：只要正文 / 链接 / 排版不变就复用，
+  /// 避免收藏、抓取进度等无关通知触发 HtmlWidget 重新解析。
+  String? _htmlCacheKey;
+  Widget? _cachedHtml;
+
+  Widget _htmlWidget(String body, String? baseUrl, TextStyle style) {
+    final String key = '${body.hashCode}|${baseUrl ?? ''}'
+        '|${style.fontSize}|${style.height}';
+    if (_htmlCacheKey == key && _cachedHtml != null) {
+      return _cachedHtml!;
+    }
+    final Widget widget =
+        HtmlWidget(_renderBody(body, baseUrl), textStyle: style);
+    _htmlCacheKey = key;
+    _cachedHtml = widget;
+    return widget;
+  }
+
   /// 渲染前把相对路径补全为绝对路径（图片 / 链接），并按 body 做缓存。
   String _renderBody(String body, String? baseUrl) {
     if (_renderedSource == body && _renderedHtml != null) {
@@ -170,10 +188,7 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> {
                               theme.textTheme.bodyMedium?.copyWith(color: subtle),
                         )
                       else
-                        HtmlWidget(
-                          _renderBody(body, article.link),
-                          textStyle: bodyStyle,
-                        ),
+                        _htmlWidget(body, article.link, bodyStyle),
                     ],
                   ),
                 ),

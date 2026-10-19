@@ -27,6 +27,25 @@ class AppRadius {
 class AppShadows {
   AppShadows._();
 
+  /// 列表卡片用的单层轻阴影：层数少、blur 小，降低滚动时的 overdraw。
+  static const List<BoxShadow> card = <BoxShadow>[
+    BoxShadow(
+      color: Color(0x0A000000),
+      blurRadius: 12,
+      offset: Offset(0, 2),
+      spreadRadius: -2,
+    ),
+  ];
+
+  static const List<BoxShadow> cardDark = <BoxShadow>[
+    BoxShadow(
+      color: Color(0x33000000),
+      blurRadius: 12,
+      offset: Offset(0, 2),
+      spreadRadius: -2,
+    ),
+  ];
+
   static const List<BoxShadow> soft = <BoxShadow>[
     BoxShadow(
       color: Color(0x0F000000),

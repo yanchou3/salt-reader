@@ -29,7 +29,7 @@ class FeedsPage extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
                     AppSpacing.xl,
-                    AppSpacing.lg,
+                    AppSpacing.xl,
                     AppSpacing.lg,
                     AppSpacing.lg,
                   ),
@@ -341,7 +341,7 @@ class _FeedTile extends StatelessWidget {
                     (isDark ? AppColors.darkOutline : AppColors.lightOutline)
                         .withValues(alpha: isDark ? 1 : 0.7),
               ),
-              boxShadow: isDark ? AppShadows.softDark : AppShadows.soft,
+              boxShadow: isDark ? AppShadows.cardDark : AppShadows.card,
             ),
             padding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.lg,

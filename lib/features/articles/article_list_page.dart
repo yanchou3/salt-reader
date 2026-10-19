@@ -24,6 +24,43 @@ class _ArticleListPageState extends State<ArticleListPage> {
   String _query = '';
   bool _showAll = false;
 
+  /// 筛选 / 搜索结果的记忆化缓存：仅在条件或数据版本变化时重算，
+  /// 避免每帧对列表做 where/toList（搜索时还会扫描正文）。
+  int _cacheRevision = -1;
+  String _cacheKey = '';
+  List<Article> _cachedArticles = const <Article>[];
+
+  List<Article> _filtered(AppStore store, String activeFilter, String query) {
+    final String key = '$_showAll\u0000$activeFilter\u0000$query';
+    if (_cacheRevision == store.revision && _cacheKey == key) {
+      return _cachedArticles;
+    }
+    final List<Article> source =
+        _showAll ? store.allArticles : store.unreadArticles;
+    final List<Article> result;
+    if (query.isEmpty) {
+      result = activeFilter == _allFilter
+          ? source
+          : source
+              .where(
+                (Article a) => store.groupOfFeed(a.feedId) == activeFilter,
+              )
+              .toList();
+    } else {
+      result = store.allArticles
+          .where(
+            (Article a) =>
+                a.title.toLowerCase().contains(query) ||
+                a.body.toLowerCase().contains(query),
+          )
+          .toList();
+    }
+    _cacheRevision = store.revision;
+    _cacheKey = key;
+    _cachedArticles = result;
+    return result;
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -35,23 +72,7 @@ class _ArticleListPageState extends State<ArticleListPage> {
         final String activeFilter =
             filters.contains(_filter) ? _filter : _allFilter;
         final String query = _query.trim().toLowerCase();
-        final List<Article> source =
-            _showAll ? store.allArticles : store.unreadArticles;
-        final List<Article> articles = query.isEmpty
-            ? source
-                .where(
-                  (Article a) =>
-                      activeFilter == _allFilter ||
-                      store.groupOfFeed(a.feedId) == activeFilter,
-                )
-                .toList()
-            : store.allArticles
-                .where(
-                  (Article a) =>
-                      a.title.toLowerCase().contains(query) ||
-                      a.body.toLowerCase().contains(query),
-                )
-                .toList();
+        final List<Article> articles = _filtered(store, activeFilter, query);
 
         return Scaffold(
           body: SafeArea(
@@ -62,7 +83,7 @@ class _ArticleListPageState extends State<ArticleListPage> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
                     AppSpacing.xl,
-                    AppSpacing.lg,
+                    AppSpacing.xl,
                     AppSpacing.lg,
                     AppSpacing.md,
                   ),
@@ -261,6 +282,10 @@ class _ArticleListPageState extends State<ArticleListPage> {
         description: '切到「订阅」页，添加一个 RSS 地址就能开始阅读。',
       );
     }
+    // 首次刷新且列表为空时用骨架屏占位，避免直接闪出「都读完了」。
+    if (articles.isEmpty && store.loading) {
+      return _skeletonList();
+    }
     if (articles.isEmpty) {
       return RefreshIndicator(
         onRefresh: store.refreshAll,
@@ -305,6 +330,117 @@ class _ArticleListPageState extends State<ArticleListPage> {
           );
         },
       ),
+    );
+  }
+
+  Widget _skeletonList() {
+    return _SkeletonPulse(
+      child: ListView.separated(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          AppSpacing.md,
+          AppSpacing.lg,
+          AppSpacing.xxl,
+        ),
+        itemCount: 6,
+        separatorBuilder: (BuildContext context, int index) =>
+            const SizedBox(height: AppSpacing.md),
+        itemBuilder: (BuildContext context, int index) =>
+            const _SkeletonCard(),
+      ),
+    );
+  }
+}
+
+/// 一个卡片的加载骨架（结构与 ArticleCard 对齐）。
+class _SkeletonCard extends StatelessWidget {
+  const _SkeletonCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+        border: Border.all(
+          color: (isDark ? AppColors.darkOutline : AppColors.lightOutline)
+              .withValues(alpha: isDark ? 1 : 0.7),
+        ),
+      ),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.md + 2,
+        AppSpacing.lg,
+        AppSpacing.lg,
+      ),
+      child: const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          _SkeletonBar(width: 96, height: 10),
+          SizedBox(height: AppSpacing.md),
+          _SkeletonBar(width: double.infinity, height: 15),
+          SizedBox(height: AppSpacing.sm),
+          _SkeletonBar(width: 208, height: 15),
+          SizedBox(height: AppSpacing.sm),
+          _SkeletonBar(width: double.infinity, height: 12),
+        ],
+      ),
+    );
+  }
+}
+
+class _SkeletonBar extends StatelessWidget {
+  const _SkeletonBar({required this.width, required this.height});
+
+  final double width;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: (isDark ? AppColors.darkOutline : AppColors.lightOutline)
+            .withValues(alpha: isDark ? 0.9 : 0.6),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+      ),
+    );
+  }
+}
+
+/// 让整块骨架共用一个呼吸动画，避免每个色块各起一个控制器。
+class _SkeletonPulse extends StatefulWidget {
+  const _SkeletonPulse({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_SkeletonPulse> createState() => _SkeletonPulseState();
+}
+
+class _SkeletonPulseState extends State<_SkeletonPulse>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 950),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: Tween<double>(begin: 0.5, end: 1).animate(
+        CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+      ),
+      child: widget.child,
     );
   }
 }

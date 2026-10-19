@@ -30,7 +30,7 @@ class StarredPage extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
                     AppSpacing.xl,
-                    AppSpacing.lg,
+                    AppSpacing.xl,
                     AppSpacing.xl,
                     AppSpacing.lg,
                   ),
