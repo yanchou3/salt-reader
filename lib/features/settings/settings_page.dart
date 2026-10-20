@@ -9,6 +9,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimens.dart';
 import '../../core/widgets/font_picker.dart';
 import '../../data/app_store.dart';
+import '../../services/image_cache.dart';
 import '../../services/opml_service.dart';
 import 'about_dialog.dart';
 
@@ -80,6 +81,12 @@ class SettingsPage extends StatelessWidget {
                   onTap: store.hasFeeds
                       ? () => _exportOpml(context, store)
                       : null,
+                ),
+                _SettingTile(
+                  icon: Icons.image_outlined,
+                  title: '图片缓存',
+                  subtitle: '文章配图缓存到本机，重复阅读更快、可离线看',
+                  onTap: () => _showImageCacheDialog(context),
                 ),
                 _SettingTile(
                   icon: Icons.cloud_outlined,
@@ -352,6 +359,14 @@ class SettingsPage extends StatelessWidget {
     messenger.showSnackBar(SnackBar(content: Text(result)));
   }
 
+  /// 图片缓存：展示占用大小，并可一键清空。
+  static Future<void> _showImageCacheDialog(BuildContext context) async {
+    await showDialog<void>(
+      context: context,
+      builder: (BuildContext dialogContext) => _ImageCacheDialog(),
+    );
+  }
+
   static Future<void> _importOpml(BuildContext context, AppStore store) async {
     final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
     try {
@@ -422,6 +437,89 @@ class _SectionLabel extends StatelessWidget {
             .labelSmall
             ?.copyWith(letterSpacing: 0.6),
       ),
+    );
+  }
+}
+
+/// 图片缓存对话框：显示占用大小与上限，可清空。
+class _ImageCacheDialog extends StatefulWidget {
+  @override
+  State<_ImageCacheDialog> createState() => _ImageCacheDialogState();
+}
+
+class _ImageCacheDialogState extends State<_ImageCacheDialog> {
+  int? _bytes;
+  bool _clearing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final int bytes = await ImageDiskCache.instance.size();
+    if (mounted) {
+      setState(() => _bytes = bytes);
+    }
+  }
+
+  Future<void> _clear() async {
+    setState(() => _clearing = true);
+    await ImageDiskCache.instance.clear();
+    final int bytes = await ImageDiskCache.instance.size();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _clearing = false;
+      _bytes = bytes;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('已清空图片缓存')),
+    );
+  }
+
+  static String _format(int bytes) {
+    if (bytes < 1024) {
+      return '$bytes B';
+    }
+    if (bytes < 1024 * 1024) {
+      return '${(bytes / 1024).toStringAsFixed(0)} KB';
+    }
+    return '${(bytes / 1024 / 1024).toStringAsFixed(1)} MB';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final int? bytes = _bytes;
+    final String sizeText = bytes == null ? '正在统计…' : _format(bytes);
+    return AlertDialog(
+      title: const Text('图片缓存'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text('已用 $sizeText', style: theme.textTheme.titleMedium),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            '阅读文章时用到的配图会缓存到本机，重看时无需再等下载，'
+            '没网也能看到。超出 ${_format(ImageDiskCache.maxBytes)} 后会自动清理最久未看的。',
+            style: theme.textTheme.labelSmall,
+          ),
+        ],
+      ),
+      actions: <Widget>[
+        TextButton(
+          onPressed: _clearing ? null : () => Navigator.of(context).pop(),
+          child: const Text('关闭'),
+        ),
+        TextButton(
+          onPressed: (_clearing || (bytes ?? 0) == 0) ? null : _clear,
+          child: Text(_clearing ? '清理中…' : '清空缓存'),
+        ),
+      ],
     );
   }
 }

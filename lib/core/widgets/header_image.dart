@@ -5,12 +5,17 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 
-/// 带自定义请求头的网络图片。
+import '../../services/image_cache.dart';
+
+/// 带自定义请求头的网络图片，带磁盘缓存。
 ///
 /// 不少图片 CDN 做了反盗链：缺少 `Referer` 时一律返回 403（少数派的
 /// `cdnfile.sspai.com` 实测就是如此）。Flutter 内置的 [NetworkImage] 不会
 /// 发送 `Referer`，因此在所有平台上都无法加载这些图片。这里用自建的
 /// [HttpClient] 把 `Referer` / `User-Agent` 补上。
+///
+/// 加载顺序是「磁盘缓存 → 网络」：下载成功的图片会落盘，之后打开同一篇文章
+/// 直接读本地，既快又能离线看。
 class HeaderNetworkImage extends ImageProvider<HeaderNetworkImage> {
   HeaderNetworkImage(this.url, {this.headers = const <String, String>{}});
 
@@ -43,6 +48,23 @@ class HeaderNetworkImage extends ImageProvider<HeaderNetworkImage> {
     HeaderNetworkImage key,
     ImageDecoderCallback decode,
   ) async {
+    final Uint8List? cached = await ImageDiskCache.instance.read(key.url);
+    if (cached != null) {
+      try {
+        final ui.ImmutableBuffer buffer =
+            await ui.ImmutableBuffer.fromUint8List(cached);
+        return await decode(buffer);
+      } catch (_) {
+        // 缓存内容已损坏（下载中断等），删掉后回退到联网重取。
+        await ImageDiskCache.instance.remove(key.url);
+      }
+    }
+    final Uint8List bytes = await _download(key);
+    ImageDiskCache.instance.save(key.url, bytes);
+    return decode(await ui.ImmutableBuffer.fromUint8List(bytes));
+  }
+
+  Future<Uint8List> _download(HeaderNetworkImage key) async {
     final Uri uri = Uri.parse(key.url);
     final HttpClientRequest request = await _client.getUrl(uri);
     key.headers.forEach((String name, String value) {
@@ -57,7 +79,7 @@ class HeaderNetworkImage extends ImageProvider<HeaderNetworkImage> {
     if (bytes.isEmpty) {
       throw StateError('图片内容为空：$url');
     }
-    return decode(await ui.ImmutableBuffer.fromUint8List(bytes));
+    return bytes;
   }
 
   @override
