@@ -8,13 +8,14 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/app_info.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimens.dart';
+import '../../core/widgets/glass.dart';
 import '../../data/app_store.dart';
 import '../../services/apk_installer.dart';
 import '../../services/updater.dart';
 
 /// 打开「关于」对话框：展示版本信息，并提供应用内更新。
 Future<void> showAppAboutDialog(BuildContext context) {
-  return showDialog<void>(
+  return showGlassDialog<void>(
     context: context,
     builder: (BuildContext dialogContext) => const _AboutDialog(),
   );
@@ -60,7 +61,7 @@ class _AboutDialogState extends State<_AboutDialog> {
   Widget _buildDialog(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final AppStore store = AppStore.instance;
-    return AlertDialog(
+    return GlassDialog(
       title: const Row(
         children: <Widget>[
           Icon(Icons.local_activity_rounded, color: AppColors.accent),

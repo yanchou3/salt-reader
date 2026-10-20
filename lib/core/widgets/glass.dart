@@ -300,7 +300,79 @@ class GlassAppBar extends StatelessWidget implements PreferredSizeWidget {
   }
 }
 
-/// 玻璃对话框：替代 [showDialog] 的默认实心底，换成可透背景的玻璃浮层。
+/// 玻璃对话框主体：标题 / 正文 / 操作按钮三段式浮层骨架。
+///
+/// 直接替代 `AlertDialog`：它没有自己的实心底，玻璃的透明度与实时模糊
+/// 才能真正透出背后的内容。需要通过 [showGlassDialog] 打开。
+class GlassDialog extends StatelessWidget {
+  const GlassDialog({
+    super.key,
+    this.title,
+    this.content,
+    this.actions,
+    this.maxContentWidth = 380,
+  });
+
+  final Widget? title;
+  final Widget? content;
+  final List<Widget>? actions;
+
+  /// 正文最大宽度（不含内边距）：桌面端避免一行字数过多。
+  final double maxContentWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return GlassContainer(
+      borderRadius: BorderRadius.circular(AppRadius.xl),
+      blurSigma: GlassTokens.blurSheet,
+      tintAlpha: GlassTokens.alphaSheet,
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.xl,
+        AppSpacing.xl,
+        AppSpacing.xl,
+        AppSpacing.lg,
+      ),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: maxContentWidth),
+        child: Material(
+          // 透明 Material 只提供按钮水波纹 / ListTile 的绘制层，不产生底色。
+          type: MaterialType.transparency,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              if (title != null)
+                DefaultTextStyle.merge(
+                  style: theme.textTheme.titleLarge ?? const TextStyle(),
+                  child: title!,
+                ),
+              if (title != null) const SizedBox(height: AppSpacing.lg),
+              if (content != null) Flexible(child: content!),
+              if (actions != null) ...<Widget>[
+                const SizedBox(height: AppSpacing.lg),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: <Widget>[
+                    for (int i = 0; i < actions!.length; i++) ...<Widget>[
+                      if (i > 0) const SizedBox(width: AppSpacing.sm),
+                      actions![i],
+                    ],
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 玻璃对话框：替代 [showDialog] 的默认实心底，换成实时模糊的玻璃浮层。
+///
+/// 用 [showGeneralDialog] 自己接管转场，才能把 [GlassDialog] 放进页面层
+/// 而不是被 `Dialog` 的主题底色挡住。
 Future<T?> showGlassDialog<T>({
   required BuildContext context,
   required WidgetBuilder builder,
@@ -310,10 +382,30 @@ Future<T?> showGlassDialog<T>({
     context: context,
     barrierDismissible: barrierDismissible,
     barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
-    barrierColor: Colors.black.withValues(alpha: 0.28),
+    barrierColor: Colors.black.withValues(alpha: 0.26),
     transitionDuration: const Duration(milliseconds: 200),
-    pageBuilder: (BuildContext context, Animation<double> a, Animation<double> b) =>
-        const SizedBox.shrink(),
+    pageBuilder: (BuildContext context, Animation<double> a, Animation<double> b) {
+      final MediaQueryData media = MediaQuery.of(context);
+      return SafeArea(
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.lg,
+            AppSpacing.lg,
+            // 键盘弹出时把浮层整体抬起，输入框不会被遮住。
+            AppSpacing.lg + media.viewInsets.bottom,
+          ),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: media.size.height * 0.82,
+              ),
+              child: builder(context),
+            ),
+          ),
+        ),
+      );
+    },
     transitionBuilder:
         (BuildContext context, Animation<double> a, Animation<double> b, Widget? child) {
       final Animation<double> curved =
@@ -322,7 +414,7 @@ Future<T?> showGlassDialog<T>({
         opacity: curved,
         child: ScaleTransition(
           scale: Tween<double>(begin: 0.96, end: 1).animate(curved),
-          child: builder(context),
+          child: child,
         ),
       );
     },

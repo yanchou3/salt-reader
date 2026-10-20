@@ -152,15 +152,19 @@ class SettingsPage extends StatelessWidget {
     BuildContext context,
     AppStore store,
   ) async {
-    await showDialog<void>(
+    await showGlassDialog<void>(
       context: context,
-      builder: (BuildContext dialogContext) => SimpleDialog(
+      builder: (BuildContext dialogContext) => GlassDialog(
         title: const Text('外观'),
-        children: <Widget>[
-          _themeOption(dialogContext, store, ThemeMode.system, '跟随系统'),
-          _themeOption(dialogContext, store, ThemeMode.light, '浅色'),
-          _themeOption(dialogContext, store, ThemeMode.dark, '深色'),
-        ],
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            _themeOption(dialogContext, store, ThemeMode.system, '跟随系统'),
+            _themeOption(dialogContext, store, ThemeMode.light, '浅色'),
+            _themeOption(dialogContext, store, ThemeMode.dark, '深色'),
+          ],
+        ),
       ),
     );
   }
@@ -173,6 +177,7 @@ class SettingsPage extends StatelessWidget {
   ) {
     final bool selected = store.themeMode == mode;
     return ListTile(
+      contentPadding: EdgeInsets.zero,
       title: Text(label),
       trailing: selected
           ? const Icon(Icons.check_rounded, color: AppColors.accent)
@@ -192,12 +197,12 @@ class SettingsPage extends StatelessWidget {
     double lineHeight = store.readerLineHeight;
     double maxWidth = store.readerMaxWidth;
 
-    await showDialog<void>(
+    await showGlassDialog<void>(
       context: context,
       builder: (BuildContext dialogContext) => StatefulBuilder(
         builder: (BuildContext context, StateSetter setLocal) {
           final ThemeData theme = Theme.of(context);
-          return AlertDialog(
+          return GlassDialog(
             title: const Text('阅读排版'),
             content: SizedBox(
               width: 380,
@@ -302,9 +307,9 @@ class SettingsPage extends StatelessWidget {
     final TextEditingController passController =
         TextEditingController(text: store.webdavPassword ?? '');
 
-    final bool? saved = await showDialog<bool>(
+    final bool? saved = await showGlassDialog<bool>(
       context: context,
-      builder: (BuildContext dialogContext) => AlertDialog(
+      builder: (BuildContext dialogContext) => GlassDialog(
         title: const Text('坚果云 WebDAV'),
         content: SingleChildScrollView(
           child: Column(
@@ -374,7 +379,7 @@ class SettingsPage extends StatelessWidget {
 
   /// 图片缓存：展示占用大小，并可一键清空。
   static Future<void> _showImageCacheDialog(BuildContext context) async {
-    await showDialog<void>(
+    await showGlassDialog<void>(
       context: context,
       builder: (BuildContext dialogContext) => _ImageCacheDialog(),
     );
@@ -530,7 +535,7 @@ class _ImageCacheDialogState extends State<_ImageCacheDialog> {
     final ThemeData theme = Theme.of(context);
     final int? bytes = _bytes;
     final String sizeText = bytes == null ? '正在统计…' : _format(bytes);
-    return AlertDialog(
+    return GlassDialog(
       title: const Text('图片缓存'),
       content: Column(
         mainAxisSize: MainAxisSize.min,

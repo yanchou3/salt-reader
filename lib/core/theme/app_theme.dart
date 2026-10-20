@@ -81,7 +81,8 @@ class AppTheme {
         iconTheme: IconThemeData(color: text, size: 22),
       ),
       dialogTheme: DialogThemeData(
-        // 没有实时模糊的对话框兜底：用较厚的半透明底，浮层上的字仍清楚。
+        // 应用内的对话框都走 showGlassDialog（自带实时模糊）；
+        // 这里只是第三方内置对话框的兜底：较厚的半透明底，字仍清楚。
         backgroundColor: GlassTokens.tint(brightness, 0.88),
         surfaceTintColor: Colors.transparent,
         elevation: 0,

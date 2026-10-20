@@ -6,6 +6,7 @@ import '../../services/font_library.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
 import '../theme/reader_fonts.dart';
+import 'glass.dart';
 
 /// 字体选择列表：系统默认 + 内置可下载字体 + 本地导入字体。
 ///
@@ -162,9 +163,9 @@ class FontPicker extends StatelessWidget {
     AppStore store,
     ReaderFont font,
   ) async {
-    final bool? confirmed = await showDialog<bool>(
+    final bool? confirmed = await showGlassDialog<bool>(
       context: context,
-      builder: (BuildContext dialogContext) => AlertDialog(
+      builder: (BuildContext dialogContext) => GlassDialog(
         title: const Text('删除字体'),
         content: Text('确定删除「${font.label}」吗？'),
         actions: <Widget>[

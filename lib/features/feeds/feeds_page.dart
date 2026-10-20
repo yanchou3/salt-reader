@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimens.dart';
 import '../../core/utils/formatting.dart';
+import '../../core/widgets/glass.dart';
 import '../../core/widgets/placeholder_empty.dart';
 import '../../data/app_store.dart';
 import '../../data/models/feed.dart';
@@ -156,9 +157,9 @@ class FeedsPage extends StatelessWidget {
     final TextEditingController urlController = TextEditingController();
     final TextEditingController groupController = TextEditingController();
 
-    final bool? submitted = await showDialog<bool>(
+    final bool? submitted = await showGlassDialog<bool>(
       context: context,
-      builder: (BuildContext dialogContext) => AlertDialog(
+      builder: (BuildContext dialogContext) => GlassDialog(
         title: const Text('添加订阅'),
         content: SingleChildScrollView(
           child: Column(
@@ -226,9 +227,9 @@ class FeedsPage extends StatelessWidget {
         .where((String g) => g != feed.group)
         .toList();
 
-    final String? selected = await showDialog<String>(
+    final String? selected = await showGlassDialog<String>(
       context: context,
-      builder: (BuildContext dialogContext) => AlertDialog(
+      builder: (BuildContext dialogContext) => GlassDialog(
         title: Text('「${feed.title}」的分组'),
         content: SingleChildScrollView(
           child: Column(
