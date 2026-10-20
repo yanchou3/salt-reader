@@ -18,4 +18,12 @@ Future<void> main() async {
   runApp(const RssReaderApp());
   // 恢复上次选中的字体（内置字体可能需要联网下载，放到首帧之后）。
   unawaited(AppStore.instance.ensureReaderFontReady());
+  // 静默检查更新：延后几秒，避开启动时的订阅刷新。
+  if (AppStore.instance.autoCheckUpdate) {
+    unawaited(
+      Future<void>.delayed(const Duration(seconds: 5)).then(
+        (void _) => AppStore.instance.checkForUpdate(silent: true),
+      ),
+    );
+  }
 }

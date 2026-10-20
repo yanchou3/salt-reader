@@ -104,7 +104,9 @@ class SettingsPage extends StatelessWidget {
                 _SettingTile(
                   icon: Icons.info_outline_rounded,
                   title: '关于${AppInfo.name}',
-                  subtitle: '版本 ${AppInfo.versionLabel} · 检查更新',
+                  subtitle: store.availableUpdate == null
+                      ? '版本 ${AppInfo.versionLabel} · 检查更新'
+                      : '发现新版本 ${store.availableUpdate!.version} · 点此更新',
                   onTap: () => showAppAboutDialog(context),
                 ),
               ],

@@ -1,11 +1,14 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
+import 'package:markdown/markdown.dart' as md;
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/app_info.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimens.dart';
+import '../../data/app_store.dart';
 import '../../services/apk_installer.dart';
 import '../../services/updater.dart';
 
@@ -29,7 +32,6 @@ class _AboutDialog extends StatefulWidget {
 class _AboutDialogState extends State<_AboutDialog> {
   _Phase _phase = _Phase.idle;
   UpdateInfo? _info;
-  String? _error;
   String? _savedPath;
   double _progress = 0;
   String? _progressLabel;
@@ -37,8 +39,27 @@ class _AboutDialogState extends State<_AboutDialog> {
   bool get _isAndroid => Platform.isAndroid;
 
   @override
+  void initState() {
+    super.initState();
+    // 启动时的静默检查可能已经有结果了，直接展示，省一次请求。
+    final UpdateInfo? cached = AppStore.instance.availableUpdate;
+    if (cached != null) {
+      _info = cached;
+      _phase = _Phase.available;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: AppStore.instance,
+      builder: (BuildContext context, Widget? child) => _buildDialog(context),
+    );
+  }
+
+  Widget _buildDialog(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final AppStore store = AppStore.instance;
     return AlertDialog(
       title: const Row(
         children: <Widget>[
@@ -66,17 +87,20 @@ class _AboutDialogState extends State<_AboutDialog> {
                 style: theme.textTheme.labelMedium,
               ),
               const SizedBox(height: AppSpacing.lg),
-              _link(
-                theme,
-                Icons.code_rounded,
-                '项目主页',
-                Updater.repoUrl,
-              ),
+              _link(theme, Icons.code_rounded, '项目主页', Updater.repoUrl),
               _link(
                 theme,
                 Icons.new_releases_outlined,
                 '发布页与历史版本',
                 Updater.releasesPageUrl,
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                value: store.autoCheckUpdate,
+                onChanged: store.saveAutoCheckUpdate,
+                title: const Text('自动检查更新'),
+                subtitle: const Text('启动后在后台静默检查一次'),
               ),
               const Divider(height: AppSpacing.xl),
               _buildUpdateArea(theme),
@@ -99,12 +123,7 @@ class _AboutDialogState extends State<_AboutDialog> {
     );
   }
 
-  Widget _link(
-    ThemeData theme,
-    IconData icon,
-    String label,
-    String url,
-  ) {
+  Widget _link(ThemeData theme, IconData icon, String label, String url) {
     return InkWell(
       onTap: () => _openUrl(url),
       borderRadius: BorderRadius.circular(6),
@@ -157,9 +176,18 @@ class _AboutDialogState extends State<_AboutDialog> {
       case _Phase.upToDate:
         return Row(
           children: <Widget>[
-            const Icon(Icons.check_circle_rounded, size: 18, color: Colors.green),
+            const Icon(
+              Icons.check_circle_rounded,
+              size: 18,
+              color: Colors.green,
+            ),
             const SizedBox(width: AppSpacing.sm),
-            Expanded(child: Text('已是最新版本 ${AppInfo.version}', style: theme.textTheme.bodyMedium)),
+            Expanded(
+              child: Text(
+                '已是最新版本 ${AppInfo.version}',
+                style: theme.textTheme.bodyMedium,
+              ),
+            ),
           ],
         );
       case _Phase.available:
@@ -185,8 +213,11 @@ class _AboutDialogState extends State<_AboutDialog> {
               const SizedBox(height: AppSpacing.sm),
               Container(
                 width: double.infinity,
-                constraints: const BoxConstraints(maxHeight: 160),
-                padding: const EdgeInsets.all(AppSpacing.sm),
+                constraints: const BoxConstraints(maxHeight: 180),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.sm,
+                  vertical: AppSpacing.xs,
+                ),
                 decoration: BoxDecoration(
                   color: theme.colorScheme.surfaceContainerHighest.withValues(
                     alpha: 0.5,
@@ -194,7 +225,13 @@ class _AboutDialogState extends State<_AboutDialog> {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: SingleChildScrollView(
-                  child: Text(info.notes, style: theme.textTheme.labelSmall),
+                  child: HtmlWidget(
+                    md.markdownToHtml(
+                      info.notes,
+                      extensionSet: md.ExtensionSet.gitHubWeb,
+                    ),
+                    textStyle: theme.textTheme.labelSmall,
+                  ),
                 ),
               ),
             ],
@@ -218,7 +255,8 @@ class _AboutDialogState extends State<_AboutDialog> {
             ),
             const SizedBox(height: AppSpacing.sm),
             Text(
-              '正在下载 ${_progressLabel ?? ''}  ${(_progress * 100).toStringAsFixed(0)}%',
+              '正在下载 ${_progressLabel ?? ''}  '
+              '${(_progress * 100).toStringAsFixed(0)}%',
               style: theme.textTheme.labelSmall,
             ),
           ],
@@ -240,15 +278,13 @@ class _AboutDialogState extends State<_AboutDialog> {
                 ),
               ],
             ),
-            if (_info != null) ...<Widget>[
-              const SizedBox(height: AppSpacing.sm),
-              Text(
-                _isAndroid
-                    ? '点「立即安装」调起系统安装器。'
-                    : '已保存到 $_savedPath，解压后覆盖原目录即可完成升级。',
-                style: theme.textTheme.labelSmall,
-              ),
-            ],
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              _isAndroid
+                  ? '点「立即安装」调起系统安装器。'
+                  : '已保存到 $_savedPath，解压后覆盖原目录即可完成升级。',
+              style: theme.textTheme.labelSmall,
+            ),
           ],
         );
     }
@@ -291,33 +327,23 @@ class _AboutDialogState extends State<_AboutDialog> {
   }
 
   Future<void> _check() async {
+    setState(() => _phase = _Phase.checking);
+    final AppStore store = AppStore.instance;
+    final UpdateInfo? info = await store.checkForUpdate();
+    if (!mounted) {
+      return;
+    }
+    final String? error = store.updateError;
     setState(() {
-      _phase = _Phase.checking;
-      _error = null;
-    });
-    try {
-      final UpdateInfo? info =
-          await Updater.instance.checkForUpdate(AppInfo.version);
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        if (info == null) {
-          _phase = _Phase.upToDate;
-        } else {
-          _info = info;
-          _phase = _Phase.available;
-        }
-      });
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
+      _info = info;
+      if (error != null) {
         _phase = _Phase.idle;
-        _error = '$error';
-      });
-      _toast(_error!);
+      } else {
+        _phase = info == null ? _Phase.upToDate : _Phase.available;
+      }
+    });
+    if (error != null) {
+      _toast(error);
     }
   }
 
@@ -327,14 +353,10 @@ class _AboutDialogState extends State<_AboutDialog> {
       _phase = _Phase.downloading;
       _progress = 0;
       _progressLabel = '';
-      _error = null;
     });
     try {
       final File file = _isAndroid
-          ? await Updater.instance.downloadApk(
-              info,
-              onProgress: _onProgress,
-            )
+          ? await Updater.instance.downloadApk(info, onProgress: _onProgress)
           : await Updater.instance.downloadWindowsZip(
               info,
               onProgress: _onProgress,
@@ -355,11 +377,8 @@ class _AboutDialogState extends State<_AboutDialog> {
       if (!mounted) {
         return;
       }
-      setState(() {
-        _phase = _Phase.available;
-        _error = '$error';
-      });
-      _toast(_error!);
+      setState(() => _phase = _Phase.available);
+      _toast('$error');
     }
   }
 
@@ -367,9 +386,8 @@ class _AboutDialogState extends State<_AboutDialog> {
     if (!mounted) {
       return;
     }
-    final double ratio = total > 0 ? received / total : 0;
     setState(() {
-      _progress = ratio;
+      _progress = total > 0 ? received / total : 0;
       _progressLabel = total > 0 ? _sizeLabel(received, total) : '';
     });
   }
@@ -390,9 +408,6 @@ class _AboutDialogState extends State<_AboutDialog> {
       }
       await ApkInstaller.install(File(path));
     } catch (error) {
-      if (!mounted) {
-        return;
-      }
       _toast('$error');
     }
   }

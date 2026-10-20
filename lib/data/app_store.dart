@@ -7,11 +7,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../core/app_info.dart';
 import '../core/theme/reader_fonts.dart';
 import '../services/feed_fetcher.dart';
 import '../services/font_library.dart';
 import '../services/opml_service.dart';
 import '../services/readable_service.dart';
+import '../services/updater.dart';
 import '../services/webdav_client.dart';
 import 'models/article.dart';
 import 'models/feed.dart';
@@ -39,6 +41,7 @@ class AppStore extends ChangeNotifier {
   static const String _kReaderCustomFonts = 'reader_custom_fonts';
   static const String _kThemeMode = 'theme_mode';
   static const String _kAutoFullText = 'auto_full_text';
+  static const String _kAutoCheckUpdate = 'auto_check_update';
   static const int _maxArticles = 300;
 
   final Dio _dio = Dio();
@@ -64,6 +67,11 @@ class AppStore extends ChangeNotifier {
   String? _fontSource;
   ThemeMode _themeMode = ThemeMode.system;
   bool _autoFetchFullText = true;
+
+  bool _autoCheckUpdate = true;
+  UpdateInfo? _availableUpdate;
+  bool _checkingUpdate = false;
+  String? _updateError;
 
   bool _loading = false;
   String? _lastError;
@@ -122,6 +130,18 @@ class AppStore extends ChangeNotifier {
 
   /// 打开文章时，若正文过短是否自动抓取原文全文。
   bool get autoFetchFullText => _autoFetchFullText;
+
+  /// 启动后是否自动静默检查新版本。
+  bool get autoCheckUpdate => _autoCheckUpdate;
+
+  /// 最近一次检查到的新版本（已是最新或尚未检查时为 null）。
+  UpdateInfo? get availableUpdate => _availableUpdate;
+
+  /// 是否正在检查更新。
+  bool get checkingUpdate => _checkingUpdate;
+
+  /// 最近一次「手动检查」的失败原因。
+  String? get updateError => _updateError;
 
   // ---- 派生数据记忆化 ----
   int _derivedRevision = -1;
@@ -291,6 +311,7 @@ class AppStore extends ChangeNotifier {
       );
       _themeMode = _themeModeFromString(prefs.getString(_kThemeMode));
       _autoFetchFullText = prefs.getBool(_kAutoFullText) ?? true;
+      _autoCheckUpdate = prefs.getBool(_kAutoCheckUpdate) ?? true;
     } catch (error) {
       _lastError = '读取本地数据失败：${_describe(error)}';
     }
@@ -334,6 +355,7 @@ class AppStore extends ChangeNotifier {
     );
     await prefs.setString(_kThemeMode, _themeMode.name);
     await prefs.setBool(_kAutoFullText, _autoFetchFullText);
+    await prefs.setBool(_kAutoCheckUpdate, _autoCheckUpdate);
   }
 
   /// 添加订阅：先抓取验证，成功才入库。
@@ -795,6 +817,41 @@ class AppStore extends ChangeNotifier {
     _autoFetchFullText = value;
     await _persist();
     _bump();
+  }
+
+  Future<void> saveAutoCheckUpdate(bool value) async {
+    _autoCheckUpdate = value;
+    await _persist();
+    _bump();
+    if (value) {
+      await checkForUpdate(silent: true);
+    }
+  }
+
+  /// 检查新版本，结果缓存在 [availableUpdate] 供设置页与「关于」复用。
+  ///
+  /// [silent] 用于启动后的静默检查：失败不记录 [updateError]，不打扰用户。
+  Future<UpdateInfo?> checkForUpdate({bool silent = false}) async {
+    if (_checkingUpdate) {
+      return _availableUpdate;
+    }
+    _checkingUpdate = true;
+    _updateError = null;
+    _bump();
+    try {
+      final UpdateInfo? info =
+          await Updater.instance.checkForUpdate(AppInfo.version);
+      _availableUpdate = info;
+      return info;
+    } catch (error) {
+      if (!silent) {
+        _updateError = _describe(error);
+      }
+      return null;
+    } finally {
+      _checkingUpdate = false;
+      _bump();
+    }
   }
 
   Future<void> saveThemeMode(ThemeMode mode) async {
