@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/theme/reader_fonts.dart';
@@ -291,7 +292,7 @@ class AppStore extends ChangeNotifier {
       _themeMode = _themeModeFromString(prefs.getString(_kThemeMode));
       _autoFetchFullText = prefs.getBool(_kAutoFullText) ?? true;
     } catch (error) {
-      _lastError = '读取本地数据失败：$error';
+      _lastError = '读取本地数据失败：${_describe(error)}';
     }
     _bump();
   }
@@ -719,7 +720,7 @@ class AppStore extends ChangeNotifier {
       _customFonts.add(font);
       return await selectFont(font);
     } catch (error) {
-      _lastError = '导入字体失败：$error';
+      _lastError = '导入字体失败：${_describe(error)}';
       _bump();
       return false;
     }
@@ -892,6 +893,16 @@ class AppStore extends ChangeNotifier {
       }
       return error.message ?? '网络请求失败';
     }
-    return '$error';
+    if (error is PlatformException) {
+      // 插件的异常原文里带着几十行 Java 堆栈，界面上只给一句结论。
+      return '本机读写失败（${error.code}），请重启应用；'
+          '若反复出现，请更新到最新版本';
+    }
+    // 其它异常兜底：压成一行、截断，避免把堆栈直接糊到界面上。
+    final String text = '$error'.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (text.isEmpty) {
+      return '未知错误';
+    }
+    return text.length <= 80 ? text : '${text.substring(0, 80)}…';
   }
 }
