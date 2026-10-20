@@ -90,8 +90,10 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> {
         store.setRead(widget.article, true);
       }
       // 默认自动抓取全文：正文过短且有原文链接时。
+      // 若后台已经在预抓这一篇，就不重复请求，交给预抓完成后自动补全。
       final String? link = widget.article.link;
       if (store.autoFetchFullText &&
+          !store.isPrefetchingFullText(widget.article.id) &&
           link != null &&
           link.isNotEmpty &&
           widget.article.summary.length < 400) {
@@ -205,6 +207,8 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> {
                       if (_shouldOfferFullText(article))
                         _FullTextHint(
                           fetching: store.fetchingFullText,
+                          prefetching:
+                              store.isPrefetchingFullText(article.id),
                           onFetch: () => _fetchFull(store, article),
                           onOpen: () => _openInBrowser(context, article.link!),
                         ),
@@ -363,15 +367,18 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> {
   }
 }
 
-/// 只拿到摘要时的提示条：抓取全文 / 在浏览器打开。
+/// 只拿到摘要时的提示条：
+/// 后台正在预抓时展示「正在准备全文」，否则提供「抓取全文 / 在浏览器打开」。
 class _FullTextHint extends StatelessWidget {
   const _FullTextHint({
     required this.fetching,
+    required this.prefetching,
     required this.onFetch,
     required this.onOpen,
   });
 
   final bool fetching;
+  final bool prefetching;
   final VoidCallback onFetch;
   final VoidCallback onOpen;
 
@@ -388,20 +395,44 @@ class _FullTextHint extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text('这个订阅源只提供了摘要。', style: theme.textTheme.labelMedium),
+          Row(
+            children: <Widget>[
+              if (prefetching) ...<Widget>[
+                const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.accent,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+              ],
+              Expanded(
+                child: Text(
+                  prefetching ? '正在为你准备全文…' : '这个订阅源只提供了摘要。',
+                  style: theme.textTheme.labelMedium,
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            '可以抓取原文页面的正文，或者直接用浏览器打开。',
+            prefetching
+                ? '全文马上就位，也可以先用浏览器打开。'
+                : '可以抓取原文页面的正文，或者直接用浏览器打开。',
             style: theme.textTheme.labelSmall,
           ),
           const SizedBox(height: AppSpacing.md),
           Row(
             children: <Widget>[
-              FilledButton.tonal(
-                onPressed: fetching ? null : onFetch,
-                child: Text(fetching ? '抓取中…' : '抓取全文'),
-              ),
-              const SizedBox(width: AppSpacing.sm),
+              if (!prefetching) ...<Widget>[
+                FilledButton.tonal(
+                  onPressed: fetching ? null : onFetch,
+                  child: Text(fetching ? '抓取中…' : '抓取全文'),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+              ],
               TextButton(
                 onPressed: onOpen,
                 child: const Text('在浏览器打开'),

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -77,6 +78,21 @@ class AppStore extends ChangeNotifier {
   String? _lastError;
   bool _fetchingFullText = false;
 
+  /// 后台正在预抓全文的文章 id（用于阅读页展示「正在准备全文」并防止重复入队）。
+  final Set<String> _fullTextInFlight = <String>{};
+
+  /// 后台预抓全文的并发上限，避免一次刷新把一堆站点同时打爆。
+  static const int _fullTextConcurrency = 3;
+
+  /// 单次刷新最多预抓多少篇（按「未读优先、时间倒序」取前 N 篇）。
+  static const int _fullTextBatch = 30;
+
+  /// 摘要短于这个长度，就认为订阅源只给了摘要、值得去原文页抓全文。
+  static const int _summaryFullTextThreshold = 400;
+
+  /// 抓取失败后的冷却时间：这段时间内不重复预抓同一篇。
+  static const int _fullTextRetryCooldownMs = 12 * 60 * 60 * 1000;
+
   /// 派生数据（排序 / 筛选 / 分组 / 计数）的记忆化缓存。
   /// 每次数据变更自增 [_revision]，所有 build 共用同一份结果，避免每帧重算。
   int _revision = 0;
@@ -89,6 +105,10 @@ class AppStore extends ChangeNotifier {
   int get revision => _revision;
 
   bool get fetchingFullText => _fetchingFullText;
+
+  /// 这篇文章的全文是否正在后台预抓（阅读页据此展示「正在准备全文」）。
+  bool isPrefetchingFullText(String articleId) =>
+      _fullTextInFlight.contains(articleId);
 
   List<Feed> get feeds => List<Feed>.unmodifiable(_feeds);
   bool get loading => _loading;
@@ -396,6 +416,7 @@ class AppStore extends ChangeNotifier {
       _loading = false;
       _bump();
       await _persist();
+      unawaited(_prefetchFullTexts());
     }
   }
 
@@ -438,6 +459,7 @@ class AppStore extends ChangeNotifier {
         failed.isEmpty ? null : '${failed.length} 个源导入失败：${failed.join('、')}';
     _bump();
     await _persist();
+    unawaited(_prefetchFullTexts());
     return added;
   }
 
@@ -466,6 +488,8 @@ class AppStore extends ChangeNotifier {
     _lastError = failed.isEmpty ? null : '刷新失败：${failed.join('、')}';
     _bump();
     await _persist();
+    // 刷新结束后在后台预抓全文，做到「点开即看」。
+    unawaited(_prefetchFullTexts());
   }
 
   void removeFeed(Feed feed) {
@@ -489,7 +513,13 @@ class AppStore extends ChangeNotifier {
         final Article existing = _articles[index];
         article
           ..read = existing.read
-          ..starred = existing.starred;
+          ..starred = existing.starred
+          ..fullTextAttemptAt = existing.fullTextAttemptAt;
+        // 订阅源往往只给摘要，而本地可能已经抓过全文；
+        // 保留更长的正文，避免刷新把辛苦抓来的全文又覆盖回摘要。
+        if (existing.body.length > article.body.length) {
+          article.updateBody(existing.body);
+        }
         _articles[index] = article;
       }
     }
@@ -813,10 +843,84 @@ class AppStore extends ChangeNotifier {
     }
   }
 
+  /// 刷新 / 订阅完成后，在后台把「只拿到摘要」的文章正文预先抓下来，
+  /// 让用户点开文章即见全文。限并发、限批量、失败静默，不打扰阅读。
+  ///
+  /// 仅在 [autoFetchFullText] 打开时生效；抓不到的仍可在阅读页手动抓。
+  Future<void> _prefetchFullTexts() async {
+    if (!_autoFetchFullText) {
+      return;
+    }
+    final int now = DateTime.now().millisecondsSinceEpoch;
+    final List<Article> candidates = _articles.where((Article a) {
+      final String link = a.link ?? '';
+      if (link.isEmpty || a.summary.length >= _summaryFullTextThreshold) {
+        return false;
+      }
+      if (_fullTextInFlight.contains(a.id)) {
+        return false;
+      }
+      final int? at = a.fullTextAttemptAt;
+      return at == null || now - at >= _fullTextRetryCooldownMs;
+    }).toList()
+      ..sort((Article a, Article b) {
+        // 未读优先，其次按发布时间倒序：优先准备用户最可能点开的文章。
+        if (a.read != b.read) {
+          return a.read ? 1 : -1;
+        }
+        final DateTime da =
+            a.published ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final DateTime db =
+            b.published ?? DateTime.fromMillisecondsSinceEpoch(0);
+        return db.compareTo(da);
+      });
+
+    final List<Article> batch =
+        candidates.take(_fullTextBatch).toList(growable: false);
+    if (batch.isEmpty) {
+      return;
+    }
+
+    int next = 0;
+
+    Future<void> worker() async {
+      while (_autoFetchFullText) {
+        final int index = next++;
+        if (index >= batch.length) {
+          return;
+        }
+        final Article article = batch[index];
+        _fullTextInFlight.add(article.id);
+        try {
+          final String? html = await _readable.extractMainHtml(article.link!);
+          if (html != null && html.isNotEmpty) {
+            article.updateBody(html);
+          }
+        } catch (_) {
+          // 预抓失败静默处理：等冷却结束或用户手动打开时再试。
+        } finally {
+          article.fullTextAttemptAt = DateTime.now().millisecondsSinceEpoch;
+          _fullTextInFlight.remove(article.id);
+          // 更新「正在准备全文」状态；若用户此刻正读这篇，全文会就地补全。
+          _bump();
+        }
+      }
+    }
+
+    await Future.wait(<Future<void>>[
+      for (int i = 0; i < _fullTextConcurrency; i++) worker(),
+    ]);
+
+    await _persist();
+  }
+
   Future<void> saveAutoFetchFullText(bool value) async {
     _autoFetchFullText = value;
     await _persist();
     _bump();
+    if (value) {
+      unawaited(_prefetchFullTexts());
+    }
   }
 
   Future<void> saveAutoCheckUpdate(bool value) async {

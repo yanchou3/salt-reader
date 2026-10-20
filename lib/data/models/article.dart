@@ -12,6 +12,7 @@ class Article {
     this.published,
     this.read = false,
     this.starred = false,
+    this.fullTextAttemptAt,
   });
 
   final String id;
@@ -25,6 +26,10 @@ class Article {
 
   /// 正文（HTML）。抓取「阅读模式」全文后会更新，改完记得调用 [updateBody]。
   String body;
+
+  /// 上次尝试抓取「阅读模式」全文的时间（毫秒时间戳），null 表示还没试过。
+  /// 后台预抓据此去重：失败的文章短时间内不再重复抓，避免每次刷新都打同一批站点。
+  int? fullTextAttemptAt;
 
   String? _summaryCache;
 
@@ -47,6 +52,7 @@ class Article {
         'published': published?.toIso8601String(),
         'read': read,
         'starred': starred,
+        'fullTextAttemptAt': fullTextAttemptAt,
       };
 
   factory Article.fromJson(Map<String, dynamic> json) => Article(
@@ -61,5 +67,6 @@ class Article {
             : DateTime.tryParse(json['published'] as String),
         read: (json['read'] as bool?) ?? false,
         starred: (json['starred'] as bool?) ?? false,
+        fullTextAttemptAt: (json['fullTextAttemptAt'] as num?)?.toInt(),
       );
 }

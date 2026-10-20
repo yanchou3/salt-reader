@@ -54,7 +54,7 @@ class SettingsPage extends StatelessWidget {
                 SwitchListTile(
                   secondary: const Icon(Icons.download_rounded),
                   title: const Text('自动抓取全文'),
-                  subtitle: const Text('打开只给摘要的文章时，自动抓取原文正文'),
+                  subtitle: const Text('刷新后后台预抓只有摘要的文章，点开即见全文'),
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: AppSpacing.sm,
                   ),
