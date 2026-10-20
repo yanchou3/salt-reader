@@ -4,11 +4,13 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/app_info.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimens.dart';
 import '../../core/widgets/font_picker.dart';
 import '../../data/app_store.dart';
 import '../../services/opml_service.dart';
+import 'about_dialog.dart';
 
 /// 设置页：阅读偏好、OPML 导入导出、同步（部分待实现）。
 class SettingsPage extends StatelessWidget {
@@ -96,6 +98,14 @@ class SettingsPage extends StatelessWidget {
                   onTap: store.webdavConfigured && !store.loading
                       ? () => _runSync(context, store)
                       : null,
+                ),
+                const SizedBox(height: AppSpacing.xl),
+                const _SectionLabel('关于'),
+                _SettingTile(
+                  icon: Icons.info_outline_rounded,
+                  title: '关于${AppInfo.name}',
+                  subtitle: '版本 ${AppInfo.versionLabel} · 检查更新',
+                  onTap: () => showAppAboutDialog(context),
                 ),
               ],
             );

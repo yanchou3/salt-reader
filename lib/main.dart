@@ -3,10 +3,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'app.dart';
+import 'core/app_info.dart';
 import 'data/app_store.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await AppInfo.load();
   try {
     await AppStore.instance.load();
   } catch (error, stack) {

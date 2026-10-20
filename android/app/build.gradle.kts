@@ -34,6 +34,11 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
+            // 关闭 R8 压缩与混淆（详见 android/gradle.properties 中的 shrink=false）。
+            // 混淆会重命名 kotlin.coroutines.Continuation，导致 shared_preferences 的
+            // Pigeon jnigen 绑定按硬编码 JNI 签名找不到方法而抛 NoSuchMethodError。
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
 }
