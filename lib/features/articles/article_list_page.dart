@@ -312,7 +312,7 @@ class _ArticleListPageState extends State<ArticleListPage> {
           AppSpacing.lg,
           AppSpacing.md,
           AppSpacing.lg,
-          AppSpacing.xxl,
+          AppSpacing.navBottom,
         ),
         itemCount: articles.length,
         separatorBuilder: (BuildContext context, int index) =>
@@ -340,7 +340,7 @@ class _ArticleListPageState extends State<ArticleListPage> {
           AppSpacing.lg,
           AppSpacing.md,
           AppSpacing.lg,
-          AppSpacing.xxl,
+          AppSpacing.navBottom,
         ),
         itemCount: 6,
         separatorBuilder: (BuildContext context, int index) =>

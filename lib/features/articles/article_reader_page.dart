@@ -7,6 +7,7 @@ import '../../core/theme/app_dimens.dart';
 import '../../core/utils/formatting.dart';
 import '../../core/utils/html_utils.dart';
 import '../../core/widgets/font_picker.dart';
+import '../../core/widgets/glass.dart';
 import '../../core/widgets/header_image.dart';
 import '../../data/app_store.dart';
 import '../../data/models/article.dart';
@@ -123,7 +124,9 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> {
         );
 
         return Scaffold(
-          appBar: AppBar(
+          // 正文从顶部延伸到玻璃 AppBar 下方，滚动时文字从玻璃后透出。
+          extendBodyBehindAppBar: true,
+          appBar: GlassAppBar(
             leading: IconButton(
               icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
               onPressed: () => Navigator.of(context).maybePop(),
@@ -164,9 +167,11 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> {
           body: SafeArea(
             top: false,
             child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(
+              padding: EdgeInsets.fromLTRB(
                 AppSpacing.xl,
-                AppSpacing.sm,
+                MediaQuery.of(context).padding.top +
+                    kToolbarHeight +
+                    AppSpacing.sm,
                 AppSpacing.xl,
                 AppSpacing.xxl,
               ),
@@ -276,9 +281,8 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> {
   void _showQuickTypeSettings(BuildContext context, AppStore store) {
     double fontScale = store.readerFontScale;
     double lineHeight = store.readerLineHeight;
-    showModalBottomSheet<void>(
+    showGlassSheet<void>(
       context: context,
-      showDragHandle: true,
       builder: (BuildContext sheetContext) => StatefulBuilder(
         builder: (BuildContext context, StateSetter setLocal) {
           final ThemeData theme = Theme.of(context);

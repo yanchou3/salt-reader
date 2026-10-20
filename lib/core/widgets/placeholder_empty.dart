@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimens.dart';
+import '../../core/widgets/glass.dart';
 
 /// 通用空状态（订阅/收藏等页在功能接入前先展示）。
 class PlaceholderEmpty extends StatelessWidget {
@@ -27,8 +28,10 @@ class PlaceholderEmpty extends StatelessWidget {
         : AppColors.lightTextSecondary;
 
     return Center(
-      child: Padding(
+      child: GlassContainer(
+        borderRadius: BorderRadius.circular(AppRadius.xl),
         padding: const EdgeInsets.all(AppSpacing.xxl),
+        margin: const EdgeInsets.all(AppSpacing.xxl),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[

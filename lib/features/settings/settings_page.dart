@@ -8,6 +8,7 @@ import '../../core/app_info.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimens.dart';
 import '../../core/widgets/font_picker.dart';
+import '../../core/widgets/glass.dart';
 import '../../data/app_store.dart';
 import '../../services/image_cache.dart';
 import '../../services/opml_service.dart';
@@ -33,88 +34,100 @@ class SettingsPage extends StatelessWidget {
                 AppSpacing.xl,
                 AppSpacing.lg,
                 AppSpacing.xl,
-                AppSpacing.xxl,
+                AppSpacing.navBottom,
               ),
               children: <Widget>[
                 Text('设置', style: theme.textTheme.displaySmall),
                 const SizedBox(height: AppSpacing.xl),
                 const _SectionLabel('阅读'),
-                _SettingTile(
-                  icon: Icons.text_fields_rounded,
-                  title: '阅读排版',
-                  subtitle:
-                      '${store.readerFont.label} · 字号 ${store.readerFontScale.toStringAsFixed(2)}× · 行距 ${store.readerLineHeight.toStringAsFixed(1)} · 栏宽 ${store.readerMaxWidth.round()}',
-                  onTap: () => _showReaderPrefsDialog(context, store),
-                ),
-                _SettingTile(
-                  icon: Icons.brightness_6_outlined,
-                  title: '外观',
-                  subtitle: _themeModeLabel(store.themeMode),
-                  onTap: () => _showThemeDialog(context, store),
-                ),
-                SwitchListTile(
-                  secondary: const Icon(Icons.download_rounded),
-                  title: const Text('自动抓取全文'),
-                  subtitle: const Text('刷新后后台预抓只有摘要的文章，点开即见全文'),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.sm,
-                  ),
-                  value: store.autoFetchFullText,
-                  onChanged: store.saveAutoFetchFullText,
+                _GlassGroup(
+                  children: <Widget>[
+                    _SettingTile(
+                      icon: Icons.text_fields_rounded,
+                      title: '阅读排版',
+                      subtitle:
+                          '${store.readerFont.label} · 字号 ${store.readerFontScale.toStringAsFixed(2)}× · 行距 ${store.readerLineHeight.toStringAsFixed(1)} · 栏宽 ${store.readerMaxWidth.round()}',
+                      onTap: () => _showReaderPrefsDialog(context, store),
+                    ),
+                    _SettingTile(
+                      icon: Icons.brightness_6_outlined,
+                      title: '外观',
+                      subtitle: _themeModeLabel(store.themeMode),
+                      onTap: () => _showThemeDialog(context, store),
+                    ),
+                    SwitchListTile(
+                      secondary: const Icon(Icons.download_rounded),
+                      title: const Text('自动抓取全文'),
+                      subtitle: const Text('刷新后后台预抓只有摘要的文章，点开即见全文'),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.sm,
+                      ),
+                      value: store.autoFetchFullText,
+                      onChanged: store.saveAutoFetchFullText,
+                    ),
+                  ],
                 ),
                 const SizedBox(height: AppSpacing.xl),
                 const _SectionLabel('数据'),
-                _SettingTile(
-                  icon: Icons.file_download_outlined,
-                  title: '导入 OPML',
-                  subtitle: '从其它阅读器迁移订阅',
-                  onTap: store.loading
-                      ? null
-                      : () => _importOpml(context, store),
-                ),
-                _SettingTile(
-                  icon: Icons.file_upload_outlined,
-                  title: '导出 OPML',
-                  subtitle: store.hasFeeds
-                      ? '导出 ${store.feeds.length} 个订阅源'
-                      : '暂无订阅源',
-                  onTap: store.hasFeeds
-                      ? () => _exportOpml(context, store)
-                      : null,
-                ),
-                _SettingTile(
-                  icon: Icons.image_outlined,
-                  title: '图片缓存',
-                  subtitle: '文章配图缓存到本机，重复阅读更快、可离线看',
-                  onTap: () => _showImageCacheDialog(context),
-                ),
-                _SettingTile(
-                  icon: Icons.cloud_outlined,
-                  title: 'WebDAV 服务器',
-                  subtitle: store.webdavConfigured
-                      ? (store.webdavUrl ?? '')
-                      : '未配置（坚果云 dav.jianguoyun.com）',
-                  onTap: () => _showWebDavDialog(context, store),
-                ),
-                _SettingTile(
-                  icon: Icons.sync_rounded,
-                  title: '立即同步',
-                  subtitle: store.webdavConfigured
-                      ? '双向同步订阅与已读 / 收藏'
-                      : '配置后可同步',
-                  onTap: store.webdavConfigured && !store.loading
-                      ? () => _runSync(context, store)
-                      : null,
+                _GlassGroup(
+                  children: <Widget>[
+                    _SettingTile(
+                      icon: Icons.file_download_outlined,
+                      title: '导入 OPML',
+                      subtitle: '从其它阅读器迁移订阅',
+                      onTap: store.loading
+                          ? null
+                          : () => _importOpml(context, store),
+                    ),
+                    _SettingTile(
+                      icon: Icons.file_upload_outlined,
+                      title: '导出 OPML',
+                      subtitle: store.hasFeeds
+                          ? '导出 ${store.feeds.length} 个订阅源'
+                          : '暂无订阅源',
+                      onTap: store.hasFeeds
+                          ? () => _exportOpml(context, store)
+                          : null,
+                    ),
+                    _SettingTile(
+                      icon: Icons.image_outlined,
+                      title: '图片缓存',
+                      subtitle: '文章配图缓存到本机，重复阅读更快、可离线看',
+                      onTap: () => _showImageCacheDialog(context),
+                    ),
+                    _SettingTile(
+                      icon: Icons.cloud_outlined,
+                      title: 'WebDAV 服务器',
+                      subtitle: store.webdavConfigured
+                          ? (store.webdavUrl ?? '')
+                          : '未配置（坚果云 dav.jianguoyun.com）',
+                      onTap: () => _showWebDavDialog(context, store),
+                    ),
+                    _SettingTile(
+                      icon: Icons.sync_rounded,
+                      title: '立即同步',
+                      subtitle: store.webdavConfigured
+                          ? '双向同步订阅与已读 / 收藏'
+                          : '配置后可同步',
+                      onTap: store.webdavConfigured && !store.loading
+                          ? () => _runSync(context, store)
+                          : null,
+                    ),
+                  ],
                 ),
                 const SizedBox(height: AppSpacing.xl),
                 const _SectionLabel('关于'),
-                _SettingTile(
-                  icon: Icons.info_outline_rounded,
-                  title: '关于${AppInfo.name}',
-                  subtitle: store.availableUpdate == null
-                      ? '版本 ${AppInfo.versionLabel} · 检查更新'
-                      : '发现新版本 ${store.availableUpdate!.version} · 点此更新',
-                  onTap: () => showAppAboutDialog(context),
+                _GlassGroup(
+                  children: <Widget>[
+                    _SettingTile(
+                      icon: Icons.info_outline_rounded,
+                      title: '关于${AppInfo.name}',
+                      subtitle: store.availableUpdate == null
+                          ? '版本 ${AppInfo.versionLabel} · 检查更新'
+                          : '发现新版本 ${store.availableUpdate!.version} · 点此更新',
+                      onTap: () => showAppAboutDialog(context),
+                    ),
+                  ],
                 ),
               ],
             );
@@ -436,6 +449,28 @@ class _SectionLabel extends StatelessWidget {
             .textTheme
             .labelSmall
             ?.copyWith(letterSpacing: 0.6),
+      ),
+    );
+  }
+}
+
+/// 设置分组：一块玻璃面板，把同组条目包在一起。
+class _GlassGroup extends StatelessWidget {
+  const _GlassGroup({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassContainer(
+      borderRadius: BorderRadius.circular(AppRadius.lg),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.xs,
+        vertical: AppSpacing.xs,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: children,
       ),
     );
   }

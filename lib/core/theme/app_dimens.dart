@@ -10,6 +10,10 @@ class AppSpacing {
   static const double lg = 16;
   static const double xl = 24;
   static const double xxl = 32;
+
+  /// 列表底部的「导航条留白」：正文延伸到玻璃导航条下方后，
+  /// 需要留出足够空间，最后一张卡片才不会被浮动导航条压住。
+  static const double navBottom = 120;
 }
 
 /// 大圆角是本套风格的重要特征。

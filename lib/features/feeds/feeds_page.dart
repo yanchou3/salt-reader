@@ -145,7 +145,7 @@ class FeedsPage extends StatelessWidget {
         AppSpacing.lg,
         0,
         AppSpacing.lg,
-        AppSpacing.xxl,
+        AppSpacing.navBottom,
       ),
       children: items,
     );

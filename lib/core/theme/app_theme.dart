@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'app_colors.dart';
 import 'app_dimens.dart';
 import 'app_typography.dart';
+import '../widgets/glass.dart';
 
-/// 椒盐音乐风格主题：中性底色 + 单一强调色 + 大圆角 + 克制海拔。
+/// 椒盐音乐风格主题：中性底色 + 单一强调色 + 大圆角 + 克制海拔，
+/// 表面统一走「液态玻璃」（半透明 + 模糊 + 高光描边）。
 class AppTheme {
   AppTheme._();
 
@@ -56,7 +58,8 @@ class AppTheme {
       useMaterial3: true,
       brightness: brightness,
       colorScheme: scheme,
-      scaffoldBackgroundColor: background,
+      // 页面背景交给根部的 AuroraBackground，各页 Scaffold 保持透明。
+      scaffoldBackgroundColor: Colors.transparent,
       textTheme: textTheme,
       pageTransitionsTheme: const PageTransitionsTheme(
         builders: <TargetPlatform, PageTransitionsBuilder>{
@@ -67,7 +70,9 @@ class AppTheme {
         },
       ),
       appBarTheme: AppBarTheme(
-        backgroundColor: background,
+        // AppBar 的玻璃由各页的 flexibleSpace（GlassContainer）提供，
+        // 这里只保证默认底色是透的。
+        backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
@@ -75,10 +80,37 @@ class AppTheme {
         titleTextStyle: textTheme.titleLarge,
         iconTheme: IconThemeData(color: text, size: 22),
       ),
-      dividerTheme: DividerThemeData(color: outline, thickness: 1, space: 1),
+      dialogTheme: DialogThemeData(
+        // 没有实时模糊的对话框兜底：用较厚的半透明底，浮层上的字仍清楚。
+        backgroundColor: GlassTokens.tint(brightness, 0.88),
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          side: BorderSide(color: GlassTokens.border(brightness)),
+        ),
+        titleTextStyle: textTheme.titleLarge,
+      ),
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: GlassTokens.tint(brightness, 0.90),
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        modalBackgroundColor: GlassTokens.tint(brightness, 0.90),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(AppRadius.xl),
+          ),
+        ),
+      ),
+      dividerTheme: DividerThemeData(
+        color: outline.withValues(alpha: 0.6),
+        thickness: 1,
+        space: 1,
+      ),
       iconTheme: IconThemeData(color: textSecondary, size: 22),
       navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: surface,
+        // 导航条自身的玻璃由 AppShell 提供，这里保持透明。
+        backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
         indicatorColor: AppColors.accent.withValues(alpha: 0.12),
         elevation: 0,
@@ -108,9 +140,10 @@ class AppTheme {
         ),
       ),
       chipTheme: ChipThemeData(
-        backgroundColor: surfaceAlt,
-        selectedColor: AppColors.accent.withValues(alpha: 0.12),
-        side: BorderSide.none,
+        // 胶囊筛选条做成玻璃质感。
+        backgroundColor: GlassTokens.tint(brightness, 0.52),
+        selectedColor: AppColors.accent.withValues(alpha: 0.16),
+        side: BorderSide(color: GlassTokens.border(brightness)),
         shape: const StadiumBorder(),
         showCheckmark: false,
         labelPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),

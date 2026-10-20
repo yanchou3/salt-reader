@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 
 import 'core/theme/app_theme.dart';
+import 'core/widgets/glass.dart';
 import 'data/app_store.dart';
 import 'features/shell/app_shell.dart';
 
 /// 应用根：椒盐音乐风格的极简留白主题（浅/深双套，可跟随系统或手动指定）。
+///
+/// 整个窗口铺一层极光底（[AuroraBackground]），页面用透明 Scaffold 透出它；
+/// 这样各处玻璃组件背后才有内容可模糊，「液态玻璃」才成立。
 class RssReaderApp extends StatelessWidget {
   const RssReaderApp({super.key});
 
@@ -18,6 +22,13 @@ class RssReaderApp extends StatelessWidget {
         theme: AppTheme.light(),
         darkTheme: AppTheme.dark(),
         themeMode: AppStore.instance.themeMode,
+        builder: (BuildContext context, Widget? navigator) => Stack(
+          fit: StackFit.expand,
+          children: <Widget>[
+            const AuroraBackground(),
+            ?navigator,
+          ],
+        ),
         home: const AppShell(),
       ),
     );

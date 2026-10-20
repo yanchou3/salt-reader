@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_dimens.dart';
+import '../../core/widgets/glass.dart';
 import '../../core/widgets/placeholder_empty.dart';
 import '../../data/app_store.dart';
 import '../../data/models/article.dart';
@@ -35,7 +36,8 @@ class _FeedArticlesPageState extends State<FeedArticlesPage> {
             _showAll ? all : all.where((Article a) => !a.read).toList();
 
         return Scaffold(
-          appBar: AppBar(
+          extendBodyBehindAppBar: true,
+          appBar: GlassAppBar(
             leading: IconButton(
               icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
               onPressed: () => Navigator.of(context).maybePop(),
@@ -69,9 +71,12 @@ class _FeedArticlesPageState extends State<FeedArticlesPage> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
               Padding(
-                padding: const EdgeInsets.fromLTRB(
+                // 正文延伸到玻璃 AppBar 下方，这里补回被遮住的高度。
+                padding: EdgeInsets.fromLTRB(
                   AppSpacing.lg,
-                  AppSpacing.sm,
+                  MediaQuery.of(context).padding.top +
+                      kToolbarHeight +
+                      AppSpacing.sm,
                   AppSpacing.lg,
                   AppSpacing.md,
                 ),
@@ -136,7 +141,7 @@ class _FeedArticlesPageState extends State<FeedArticlesPage> {
           AppSpacing.lg,
           0,
           AppSpacing.lg,
-          AppSpacing.xxl,
+          AppSpacing.navBottom,
         ),
         itemCount: articles.length,
         separatorBuilder: (BuildContext context, int index) =>

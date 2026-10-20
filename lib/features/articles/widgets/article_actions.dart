@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/glass.dart';
 import '../../../data/app_store.dart';
 import '../../../data/models/article.dart';
 
 /// 长按文章卡片时的快捷操作（标记已读 / 收藏）。
 Future<void> showArticleActions(BuildContext context, Article article) async {
   final AppStore store = AppStore.instance;
-  await showModalBottomSheet<void>(
+  await showGlassSheet<void>(
     context: context,
-    showDragHandle: true,
     builder: (BuildContext sheetContext) {
       return SafeArea(
         child: Column(

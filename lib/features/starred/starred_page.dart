@@ -58,7 +58,7 @@ class StarredPage extends StatelessWidget {
                             AppSpacing.lg,
                             0,
                             AppSpacing.lg,
-                            AppSpacing.xxl,
+                            AppSpacing.navBottom,
                           ),
                           itemCount: starred.length,
                           separatorBuilder: (BuildContext context, int index) =>
