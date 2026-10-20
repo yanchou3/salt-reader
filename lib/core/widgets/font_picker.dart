@@ -67,7 +67,8 @@ class FontPicker extends StatelessWidget {
       ),
       subtitle: Text(
         loading
-            ? '下载中 ${(store.fontProgress * 100).toStringAsFixed(0)}%'
+            ? '${store.fontSource ?? '国内镜像'}下载中 '
+                '${(store.fontProgress * 100).toStringAsFixed(0)}%'
             : _subtitle(font, ready),
         style: theme.textTheme.labelSmall,
       ),
@@ -84,7 +85,28 @@ class FontPicker extends StatelessWidget {
                   onPressed: () => _confirmDelete(context, store, font),
                 )
               : null),
-      onTap: loading ? null : () => store.selectFont(font),
+      onTap: loading ? null : () => _select(context, store, font),
+    );
+  }
+
+  Future<void> _select(
+    BuildContext context,
+    AppStore store,
+    ReaderFont font,
+  ) async {
+    final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
+    final bool ok = await store.selectFont(font);
+    if (ok) {
+      return;
+    }
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(store.lastError ?? '「${font.label}」加载失败'),
+        action: SnackBarAction(
+          label: '重试',
+          onPressed: () => store.selectFont(font),
+        ),
+      ),
     );
   }
 
@@ -95,7 +117,12 @@ class FontPicker extends StatelessWidget {
     if (font.isCustom) {
       return ready ? '本地字体' : '文件缺失';
     }
-    return ready ? '已下载，可离线使用' : '首次选择时联网下载';
+    if (ready) {
+      return '已下载，可离线使用';
+    }
+    final String size =
+        font.sizeHint == null ? '' : '，${font.sizeHint}';
+    return '首次选择时联网下载（国内镜像$size）';
   }
 
   Future<void> _pickLocalFile(BuildContext context, AppStore store) async {

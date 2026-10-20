@@ -60,6 +60,7 @@ class AppStore extends ChangeNotifier {
   final List<ReaderFont> _customFonts = <ReaderFont>[];
   String? _loadingFontId;
   double _fontProgress = 0;
+  String? _fontSource;
   ThemeMode _themeMode = ThemeMode.system;
   bool _autoFetchFullText = true;
 
@@ -108,6 +109,9 @@ class AppStore extends ChangeNotifier {
 
   /// 当前字体加载进度 0..1。
   double get fontProgress => _fontProgress;
+
+  /// 当前字体正在从哪个镜像下载（如「清华镜像」）。
+  String? get fontSource => _fontSource;
 
   /// 实际可用的字体族名：字体没注册好时返回 null（回退系统字体）。
   String? get activeFontFamily => FontLibrary.instance.isRegistered(_readerFont)
@@ -672,26 +676,32 @@ class AppStore extends ChangeNotifier {
     _readerFont = font;
     _loadingFontId = font.id;
     _fontProgress = 0;
+    _fontSource = null;
+    _lastError = null;
     _bump();
 
     bool ok = true;
     try {
       ok = await FontLibrary.instance.ensure(
         font,
-        onProgress: (int received, int total) {
+        onProgress: (int received, int total, String source) {
+          _fontSource = source;
           _fontProgress = total > 0 ? received / total : 0;
           _bump();
         },
       );
     } catch (error) {
       ok = false;
-      _lastError = '字体加载失败：$error';
+      _lastError = error is FontLibraryException
+          ? error.message
+          : '字体加载失败：$error';
     }
 
     _loadingFontId = null;
     _fontProgress = 0;
+    _fontSource = null;
     if (!ok) {
-      _lastError = '字体加载失败，已回退到系统默认字体';
+      _lastError ??= '字体加载失败，已回退到系统默认字体';
       _readerFont = ReaderFont.system;
     }
     await _persist();
@@ -732,7 +742,15 @@ class AppStore extends ChangeNotifier {
     if (font.isSystem || FontLibrary.instance.isRegistered(font)) {
       return;
     }
-    final bool ok = await FontLibrary.instance.ensure(font);
+    bool ok = true;
+    try {
+      ok = await FontLibrary.instance.ensure(font);
+    } catch (error) {
+      ok = false;
+      _lastError = error is FontLibraryException
+          ? error.message
+          : '字体加载失败：$error';
+    }
     if (!ok) {
       _readerFont = ReaderFont.system;
       await _persist();
