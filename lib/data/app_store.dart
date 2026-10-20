@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -6,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/theme/reader_fonts.dart';
 import '../services/feed_fetcher.dart';
+import '../services/font_library.dart';
 import '../services/opml_service.dart';
 import '../services/readable_service.dart';
 import '../services/webdav_client.dart';
@@ -31,7 +34,8 @@ class AppStore extends ChangeNotifier {
   static const String _kReaderFont = 'reader_font_scale';
   static const String _kReaderLine = 'reader_line_height';
   static const String _kReaderWidth = 'reader_max_width';
-  static const String _kReaderFontFamily = 'reader_font_family';
+  static const String _kReaderFontId = 'reader_font_id';
+  static const String _kReaderCustomFonts = 'reader_custom_fonts';
   static const String _kThemeMode = 'theme_mode';
   static const String _kAutoFullText = 'auto_full_text';
   static const int _maxArticles = 300;
@@ -53,6 +57,9 @@ class AppStore extends ChangeNotifier {
   double _readerLineHeight = 1.7;
   double _readerMaxWidth = 720.0;
   ReaderFont _readerFont = ReaderFont.system;
+  final List<ReaderFont> _customFonts = <ReaderFont>[];
+  String? _loadingFontId;
+  double _fontProgress = 0;
   ThemeMode _themeMode = ThemeMode.system;
   bool _autoFetchFullText = true;
 
@@ -90,8 +97,22 @@ class AppStore extends ChangeNotifier {
   double get readerLineHeight => _readerLineHeight;
   double get readerMaxWidth => _readerMaxWidth;
 
-  /// 正文字体方案。
+  /// 正文字体。
   ReaderFont get readerFont => _readerFont;
+
+  /// 用户本地导入的字体。
+  List<ReaderFont> get customFonts => List<ReaderFont>.unmodifiable(_customFonts);
+
+  /// 正在下载/注册的字体 id（用于 UI 展示进度）。
+  String? get loadingFontId => _loadingFontId;
+
+  /// 当前字体加载进度 0..1。
+  double get fontProgress => _fontProgress;
+
+  /// 实际可用的字体族名：字体没注册好时返回 null（回退系统字体）。
+  String? get activeFontFamily => FontLibrary.instance.isRegistered(_readerFont)
+      ? _readerFont.family
+      : null;
   ThemeMode get themeMode => _themeMode;
 
   /// 打开文章时，若正文过短是否自动抓取原文全文。
@@ -248,7 +269,21 @@ class AppStore extends ChangeNotifier {
       _readerFontScale = prefs.getDouble(_kReaderFont) ?? 1.0;
       _readerLineHeight = prefs.getDouble(_kReaderLine) ?? 1.7;
       _readerMaxWidth = prefs.getDouble(_kReaderWidth) ?? 720.0;
-      _readerFont = ReaderFont.fromName(prefs.getString(_kReaderFontFamily));
+      final String? customRaw = prefs.getString(_kReaderCustomFonts);
+      if (customRaw != null) {
+        final List<dynamic> list = jsonDecode(customRaw) as List<dynamic>;
+        _customFonts
+          ..clear()
+          ..addAll(
+            list.map(
+              (dynamic e) => ReaderFont.fromJson(e as Map<String, dynamic>),
+            ),
+          );
+      }
+      _readerFont = ReaderFont.byId(
+        prefs.getString(_kReaderFontId),
+        _customFonts,
+      );
       _themeMode = _themeModeFromString(prefs.getString(_kThemeMode));
       _autoFetchFullText = prefs.getBool(_kAutoFullText) ?? true;
     } catch (error) {
@@ -287,7 +322,11 @@ class AppStore extends ChangeNotifier {
     await prefs.setDouble(_kReaderFont, _readerFontScale);
     await prefs.setDouble(_kReaderLine, _readerLineHeight);
     await prefs.setDouble(_kReaderWidth, _readerMaxWidth);
-    await prefs.setString(_kReaderFontFamily, _readerFont.name);
+    await prefs.setString(_kReaderFontId, _readerFont.id);
+    await prefs.setString(
+      _kReaderCustomFonts,
+      jsonEncode(_customFonts.map((ReaderFont f) => f.toJson()).toList()),
+    );
     await prefs.setString(_kThemeMode, _themeMode.name);
     await prefs.setBool(_kAutoFullText, _autoFetchFullText);
   }
@@ -614,7 +653,6 @@ class AppStore extends ChangeNotifier {
     double? fontScale,
     double? lineHeight,
     double? maxWidth,
-    ReaderFont? font,
   }) async {
     if (fontScale != null) {
       _readerFontScale = fontScale;
@@ -625,10 +663,80 @@ class AppStore extends ChangeNotifier {
     if (maxWidth != null) {
       _readerMaxWidth = maxWidth;
     }
-    if (font != null) {
-      _readerFont = font;
+    await _persist();
+    _bump();
+  }
+
+  /// 切换正文字体：需要时下载并注册，成功后写入偏好。
+  Future<bool> selectFont(ReaderFont font) async {
+    _readerFont = font;
+    _loadingFontId = font.id;
+    _fontProgress = 0;
+    _bump();
+
+    bool ok = true;
+    try {
+      ok = await FontLibrary.instance.ensure(
+        font,
+        onProgress: (int received, int total) {
+          _fontProgress = total > 0 ? received / total : 0;
+          _bump();
+        },
+      );
+    } catch (error) {
+      ok = false;
+      _lastError = '字体加载失败：$error';
+    }
+
+    _loadingFontId = null;
+    _fontProgress = 0;
+    if (!ok) {
+      _lastError = '字体加载失败，已回退到系统默认字体';
+      _readerFont = ReaderFont.system;
     }
     await _persist();
+    _bump();
+    return ok;
+  }
+
+  /// 导入本地字体文件并立即启用。
+  Future<bool> addLocalFont(Uint8List bytes, String label) async {
+    try {
+      final ReaderFont font = await FontLibrary.instance.importBytes(
+        bytes,
+        label,
+      );
+      _customFonts.add(font);
+      return await selectFont(font);
+    } catch (error) {
+      _lastError = '导入字体失败：$error';
+      _bump();
+      return false;
+    }
+  }
+
+  /// 删除本地导入的字体；若正在使用则回退到系统默认。
+  Future<void> removeLocalFont(ReaderFont font) async {
+    await FontLibrary.instance.remove(font);
+    _customFonts.removeWhere((ReaderFont f) => f.id == font.id);
+    if (_readerFont.id == font.id) {
+      _readerFont = ReaderFont.system;
+    }
+    await _persist();
+    _bump();
+  }
+
+  /// 启动时把上次选中的字体准备好（失败则静默回退）。
+  Future<void> ensureReaderFontReady() async {
+    final ReaderFont font = _readerFont;
+    if (font.isSystem || FontLibrary.instance.isRegistered(font)) {
+      return;
+    }
+    final bool ok = await FontLibrary.instance.ensure(font);
+    if (!ok) {
+      _readerFont = ReaderFont.system;
+      await _persist();
+    }
     _bump();
   }
 
@@ -724,9 +832,47 @@ class AppStore extends ChangeNotifier {
     return value;
   }
 
+  /// 把异常翻译成用户能看懂的提示（原来的 DioExceptionType 名对用户没意义）。
   String _describe(Object error) {
+    if (error is FormatException) {
+      return error.message;
+    }
     if (error is DioException) {
-      return '${error.type.name}${error.message == null ? '' : ' / ${error.message}'}';
+      final int? code = error.response?.statusCode;
+      switch (error.type) {
+        case DioExceptionType.badResponse:
+          if (code == 404) {
+            return '地址不存在（HTTP 404），请检查订阅地址是否写错';
+          }
+          if (code == 401 || code == 403) {
+            return '站点拒绝访问（HTTP $code），可能需要登录或有反爬限制';
+          }
+          if (code == 429) {
+            return '请求太频繁（HTTP 429），稍后再试';
+          }
+          if (code != null && code >= 500) {
+            return '站点服务器出错（HTTP $code），与本站无关，稍后再试';
+          }
+          return code == null ? '服务器返回异常' : '服务器返回异常（HTTP $code）';
+        case DioExceptionType.connectionTimeout:
+        case DioExceptionType.sendTimeout:
+        case DioExceptionType.receiveTimeout:
+        case DioExceptionType.transformTimeout:
+          return '连接超时，请检查网络或该站点是否可访问';
+        case DioExceptionType.connectionError:
+          return '连不上这个站点，请检查网络或域名是否正确';
+        case DioExceptionType.badCertificate:
+          return 'HTTPS 证书校验失败，该站点的证书不受信任';
+        case DioExceptionType.cancel:
+          return '请求已取消';
+        case DioExceptionType.unknown:
+          break;
+      }
+      final Object? inner = error.error;
+      if (inner is SocketException) {
+        return '连不上这个站点：${inner.osError?.message ?? inner.message}';
+      }
+      return error.message ?? '网络请求失败';
     }
     return '$error';
   }

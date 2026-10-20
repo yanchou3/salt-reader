@@ -4,9 +4,9 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimens.dart';
-import '../../core/theme/reader_fonts.dart';
 import '../../core/utils/formatting.dart';
 import '../../core/utils/html_utils.dart';
+import '../../core/widgets/font_picker.dart';
 import '../../core/widgets/header_image.dart';
 import '../../data/app_store.dart';
 import '../../data/models/article.dart';
@@ -117,7 +117,7 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> {
             (theme.textTheme.bodyLarge ?? const TextStyle()).copyWith(
           fontSize: 16 * store.readerFontScale,
           height: store.readerLineHeight,
-          fontFamily: store.readerFont.family,
+          fontFamily: store.activeFontFamily,
         );
 
         return Scaffold(
@@ -272,7 +272,6 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> {
   void _showQuickTypeSettings(BuildContext context, AppStore store) {
     double fontScale = store.readerFontScale;
     double lineHeight = store.readerLineHeight;
-    ReaderFont font = store.readerFont;
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -293,29 +292,18 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> {
                 Text('排版', style: theme.textTheme.titleMedium),
                 const SizedBox(height: AppSpacing.lg),
                 Text('字体', style: theme.textTheme.labelMedium),
-                const SizedBox(height: AppSpacing.sm),
-                Wrap(
-                  spacing: AppSpacing.sm,
-                  runSpacing: AppSpacing.sm,
-                  children: <Widget>[
-                    for (final ReaderFont option in ReaderFont.values)
-                      ChoiceChip(
-                        label: Text(
-                          option.label,
-                          style: TextStyle(fontFamily: option.family),
-                        ),
-                        selected: font == option,
-                        onSelected: (_) => setLocal(() => font = option),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.lg),
-                Text(
-                  '阅读工具的价值，不在于让你读得更多，而在于让你读得更从容。',
-                  style: TextStyle(
-                    fontSize: 16 * fontScale,
-                    height: lineHeight,
-                    fontFamily: font.family,
+                const SizedBox(height: AppSpacing.xs),
+                const FontPicker(),
+                const SizedBox(height: AppSpacing.md),
+                ListenableBuilder(
+                  listenable: AppStore.instance,
+                  builder: (BuildContext context, Widget? child) => Text(
+                    '阅读工具的价值，不在于让你读得更多，而在于让你读得更从容。',
+                    style: TextStyle(
+                      fontSize: 16 * fontScale,
+                      height: lineHeight,
+                      fontFamily: AppStore.instance.activeFontFamily,
+                    ),
                   ),
                 ),
                 const SizedBox(height: AppSpacing.md),
@@ -341,7 +329,6 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> {
                       store.saveReaderPrefs(
                         fontScale: fontScale,
                         lineHeight: lineHeight,
-                        font: font,
                       );
                       Navigator.of(sheetContext).pop();
                     },

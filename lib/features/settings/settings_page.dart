@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimens.dart';
-import '../../core/theme/reader_fonts.dart';
+import '../../core/widgets/font_picker.dart';
 import '../../data/app_store.dart';
 import '../../services/opml_service.dart';
 
@@ -159,7 +159,6 @@ class SettingsPage extends StatelessWidget {
     double fontScale = store.readerFontScale;
     double lineHeight = store.readerLineHeight;
     double maxWidth = store.readerMaxWidth;
-    ReaderFont font = store.readerFont;
 
     await showDialog<void>(
       context: context,
@@ -168,62 +167,54 @@ class SettingsPage extends StatelessWidget {
           final ThemeData theme = Theme.of(context);
           return AlertDialog(
             title: const Text('阅读排版'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text('预览', style: theme.textTheme.labelSmall),
-                  const SizedBox(height: AppSpacing.sm),
-                  Text(
-                    '阅读工具的价值，不在于让你读得更多，而在于让你读得更从容。',
-                    style: TextStyle(
-                      fontSize: 16 * fontScale,
-                      height: lineHeight,
-                      fontFamily: font.family,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-                  Text('字体', style: theme.textTheme.labelMedium),
-                  const SizedBox(height: AppSpacing.sm),
-                  Wrap(
-                    spacing: AppSpacing.sm,
-                    runSpacing: AppSpacing.sm,
-                    children: <Widget>[
-                      for (final ReaderFont option in ReaderFont.values)
-                        ChoiceChip(
-                          label: Text(
-                            option.label,
-                            style: TextStyle(fontFamily: option.family),
-                          ),
-                          selected: font == option,
-                          onSelected: (_) => setLocal(() => font = option),
+            content: SizedBox(
+              width: 380,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text('预览', style: theme.textTheme.labelSmall),
+                    const SizedBox(height: AppSpacing.sm),
+                    ListenableBuilder(
+                      listenable: AppStore.instance,
+                      builder: (BuildContext context, Widget? child) => Text(
+                        '阅读工具的价值，不在于让你读得更多，而在于让你读得更从容。',
+                        style: TextStyle(
+                          fontSize: 16 * fontScale,
+                          height: lineHeight,
+                          fontFamily: AppStore.instance.activeFontFamily,
                         ),
-                    ],
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-                  _prefSlider(
-                    '字号',
-                    fontScale,
-                    0.8,
-                    1.6,
-                    (double v) => setLocal(() => fontScale = v),
-                  ),
-                  _prefSlider(
-                    '行距',
-                    lineHeight,
-                    1.3,
-                    2.2,
-                    (double v) => setLocal(() => lineHeight = v),
-                  ),
-                  _prefSlider(
-                    '栏宽',
-                    maxWidth,
-                    480,
-                    1000,
-                    (double v) => setLocal(() => maxWidth = v),
-                  ),
-                ],
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                    Text('字体', style: theme.textTheme.labelMedium),
+                    const SizedBox(height: AppSpacing.xs),
+                    const FontPicker(),
+                    const SizedBox(height: AppSpacing.md),
+                    _prefSlider(
+                      '字号',
+                      fontScale,
+                      0.8,
+                      1.6,
+                      (double v) => setLocal(() => fontScale = v),
+                    ),
+                    _prefSlider(
+                      '行距',
+                      lineHeight,
+                      1.3,
+                      2.2,
+                      (double v) => setLocal(() => lineHeight = v),
+                    ),
+                    _prefSlider(
+                      '栏宽',
+                      maxWidth,
+                      480,
+                      1000,
+                      (double v) => setLocal(() => maxWidth = v),
+                    ),
+                  ],
+                ),
               ),
             ),
             actions: <Widget>[
@@ -233,7 +224,6 @@ class SettingsPage extends StatelessWidget {
                     fontScale: fontScale,
                     lineHeight: lineHeight,
                     maxWidth: maxWidth,
-                    font: font,
                   );
                   if (dialogContext.mounted) {
                     Navigator.of(dialogContext).pop();

@@ -203,7 +203,16 @@ class FeedsPage extends StatelessWidget {
     if (submitted != true || urlController.text.trim().isEmpty) {
       return;
     }
+    if (!context.mounted) {
+      return;
+    }
+    final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
     await store.addFeed(urlController.text, group: groupController.text);
+    // 失败原因弹出来，避免用户只看到页面顶部的小字提示。
+    final String? error = store.lastError;
+    if (error != null) {
+      messenger.showSnackBar(SnackBar(content: Text(error)));
+    }
   }
 
   Future<void> _showGroupDialog(

@@ -49,8 +49,9 @@ class FeedFetcher {
 
     final String xmlText = response.data ?? '';
     if (xmlText.trim().isEmpty) {
-      throw const FormatException('订阅源返回了空内容');
+      throw const FormatException('订阅源返回了空内容，请检查地址是否正确');
     }
+    _ensureNotHtml(xmlText);
 
     final RssVersion version;
     try {
@@ -67,8 +68,36 @@ class FeedFetcher {
       case RssVersion.rss1:
         return _parseRss1(feed, xmlText);
       case RssVersion.unknown:
-        throw const FormatException('无法识别的订阅格式（既不是 RSS 也不是 Atom）');
+        throw const FormatException(
+          '返回的内容不是 RSS/Atom，请确认填的是订阅源的 xml 地址',
+        );
     }
+  }
+
+  /// 不少站点会把 RSS 地址打成网页（甚至把 404 也用 200 返回）。
+  ///
+  /// 直接报「无法识别的格式」用户看不出问题在哪，这里给出更明确的提示，
+  /// 尽量把网页标题也带出来，方便定位。
+  void _ensureNotHtml(String text) {
+    String head = text.trimLeft();
+    if (head.startsWith('\uFEFF')) {
+      head = head.substring(1).trimLeft();
+    }
+    final String lowered = head.toLowerCase();
+    if (!lowered.startsWith('<!doctype html') && !lowered.startsWith('<html')) {
+      return;
+    }
+    final RegExpMatch? match = RegExp(
+      r'<title[^>]*>(.*?)</title>',
+      caseSensitive: false,
+      dotAll: true,
+    ).firstMatch(text);
+    final String title = (match?.group(1) ?? '').trim();
+    throw FormatException(
+      '这个地址返回的是网页，不是 RSS/Atom 订阅源'
+      '${title.isEmpty ? '' : '（网页标题：$title）'}。'
+      '请填该站真正的 xml / rss 地址。',
+    );
   }
 
   FetchedFeed _parseRss2(Feed feed, String xmlText) {

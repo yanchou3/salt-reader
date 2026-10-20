@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'app.dart';
@@ -12,4 +14,6 @@ Future<void> main() async {
     debugPrint('启动加载失败：$error\n$stack');
   }
   runApp(const RssReaderApp());
+  // 恢复上次选中的字体（内置字体可能需要联网下载，放到首帧之后）。
+  unawaited(AppStore.instance.ensureReaderFontReady());
 }
