@@ -169,15 +169,20 @@ class GlassContainer extends StatelessWidget {
 /// 没有它，[BackdropFilter] 只能模糊一片纯色，玻璃感就会消失：
 /// 玻璃必须「有东西可透」。
 class AuroraBackground extends StatelessWidget {
-  const AuroraBackground({super.key});
+  const AuroraBackground({super.key, this.translucent = false});
+
+  /// 窗口级背景（Windows Mica）生效时设为 true：底色留出透明度，
+  /// 桌面壁纸的色调才能从窗口里透出来。
+  final bool translucent;
 
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color base = isDark ? AppColors.darkBg : AppColors.lightBg;
     return RepaintBoundary(
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: isDark ? AppColors.darkBg : AppColors.lightBg,
+          color: translucent ? base.withValues(alpha: 0.84) : base,
         ),
         child: Stack(
           fit: StackFit.expand,

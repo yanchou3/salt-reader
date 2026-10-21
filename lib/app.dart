@@ -4,6 +4,7 @@ import 'core/theme/app_theme.dart';
 import 'core/widgets/glass.dart';
 import 'data/app_store.dart';
 import 'features/shell/app_shell.dart';
+import 'services/window_backdrop.dart';
 
 /// 应用根：椒盐音乐风格的极简留白主题（浅/深双套，可跟随系统或手动指定）。
 ///
@@ -25,7 +26,7 @@ class RssReaderApp extends StatelessWidget {
         builder: (BuildContext context, Widget? navigator) => Stack(
           fit: StackFit.expand,
           children: <Widget>[
-            const AuroraBackground(),
+            AuroraBackground(translucent: WindowBackdrop.applied),
             ?navigator,
           ],
         ),
