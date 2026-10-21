@@ -43,6 +43,7 @@ class AppStore extends ChangeNotifier {
   static const String _kThemeMode = 'theme_mode';
   static const String _kAutoFullText = 'auto_full_text';
   static const String _kAutoCheckUpdate = 'auto_check_update';
+  static const String _kMicaEnabled = 'mica_enabled';
   static const int _maxArticles = 300;
 
   final Dio _dio = Dio();
@@ -68,6 +69,7 @@ class AppStore extends ChangeNotifier {
   String? _fontSource;
   ThemeMode _themeMode = ThemeMode.system;
   bool _autoFetchFullText = true;
+  bool _micaEnabled = true;
 
   bool _autoCheckUpdate = true;
   UpdateInfo? _availableUpdate;
@@ -150,6 +152,9 @@ class AppStore extends ChangeNotifier {
 
   /// 打开文章时，若正文过短是否自动抓取原文全文。
   bool get autoFetchFullText => _autoFetchFullText;
+
+  /// 是否让 Windows 窗口透出桌面壁纸（Mica）。
+  bool get micaEnabled => _micaEnabled;
 
   /// 启动后是否自动静默检查新版本。
   bool get autoCheckUpdate => _autoCheckUpdate;
@@ -332,6 +337,7 @@ class AppStore extends ChangeNotifier {
       _themeMode = _themeModeFromString(prefs.getString(_kThemeMode));
       _autoFetchFullText = prefs.getBool(_kAutoFullText) ?? true;
       _autoCheckUpdate = prefs.getBool(_kAutoCheckUpdate) ?? true;
+      _micaEnabled = prefs.getBool(_kMicaEnabled) ?? true;
     } catch (error) {
       _lastError = '读取本地数据失败：${_describe(error)}';
     }
@@ -376,6 +382,7 @@ class AppStore extends ChangeNotifier {
     await prefs.setString(_kThemeMode, _themeMode.name);
     await prefs.setBool(_kAutoFullText, _autoFetchFullText);
     await prefs.setBool(_kAutoCheckUpdate, _autoCheckUpdate);
+    await prefs.setBool(_kMicaEnabled, _micaEnabled);
   }
 
   /// 添加订阅：先抓取验证，成功才入库。
@@ -956,6 +963,12 @@ class AppStore extends ChangeNotifier {
       _checkingUpdate = false;
       _bump();
     }
+  }
+
+  Future<void> saveMicaEnabled(bool value) async {
+    _micaEnabled = value;
+    await _persist();
+    _bump();
   }
 
   Future<void> saveThemeMode(ThemeMode mode) async {

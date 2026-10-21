@@ -23,9 +23,8 @@ class RssReaderApp extends StatefulWidget {
 class _RssReaderAppState extends State<RssReaderApp> {
   late ThemeMode _themeMode = AppStore.instance.themeMode;
 
-  /// 极光底与窗口背景绑定，启动后就固定，不随任何通知重建。
-  late final Widget _background =
-      AuroraBackground(translucent: WindowBackdrop.applied);
+  /// 窗口 Mica 是否生效：决定极光底要不要留出透明度。
+  bool _translucent = WindowBackdrop.enabled;
 
   @override
   void initState() {
@@ -41,8 +40,12 @@ class _RssReaderAppState extends State<RssReaderApp> {
 
   void _onStoreChanged() {
     final ThemeMode mode = AppStore.instance.themeMode;
-    if (mode != _themeMode) {
-      setState(() => _themeMode = mode);
+    final bool translucent = WindowBackdrop.enabled;
+    if (mode != _themeMode || translucent != _translucent) {
+      setState(() {
+        _themeMode = mode;
+        _translucent = translucent;
+      });
     }
   }
 
@@ -57,7 +60,7 @@ class _RssReaderAppState extends State<RssReaderApp> {
       builder: (BuildContext context, Widget? navigator) => Stack(
         fit: StackFit.expand,
         children: <Widget>[
-          _background,
+          AuroraBackground(translucent: _translucent),
           ?navigator,
         ],
       ),

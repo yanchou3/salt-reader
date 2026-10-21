@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io' show Platform;
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -12,6 +13,7 @@ import '../../core/widgets/glass.dart';
 import '../../data/app_store.dart';
 import '../../services/image_cache.dart';
 import '../../services/opml_service.dart';
+import '../../services/window_backdrop.dart';
 import 'about_dialog.dart';
 
 /// 设置页：阅读偏好、OPML 导入导出、同步（部分待实现）。
@@ -55,6 +57,18 @@ class SettingsPage extends StatelessWidget {
                       subtitle: _themeModeLabel(store.themeMode),
                       onTap: () => _showThemeDialog(context, store),
                     ),
+                    if (Platform.isWindows && WindowBackdrop.supported)
+                      SwitchListTile(
+                        secondary: const Icon(Icons.blur_on_rounded),
+                        title: const Text('窗口透出桌面'),
+                        subtitle:
+                            const Text('Windows 11 的 Mica 背景；关掉可再省一点显卡开销'),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.sm,
+                        ),
+                        value: store.micaEnabled,
+                        onChanged: store.saveMicaEnabled,
+                      ),
                     SwitchListTile(
                       secondary: const Icon(Icons.download_rounded),
                       title: const Text('自动抓取全文'),

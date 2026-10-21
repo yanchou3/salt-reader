@@ -12,13 +12,20 @@ import 'package:ffi/ffi.dart';
 class WindowBackdrop {
   WindowBackdrop._();
 
-  static bool _applied = false;
+  static bool _resolved = false;
+  static bool _supported = false;
+  static bool _enabled = false;
+  static bool _desired = true;
   static int _hwnd = 0;
   static bool? _lastDark;
   static _SetAttributeDart? _setAttribute;
+  static _ExtendFrameDart? _extendFrame;
 
-  /// 系统背景是否已生效。根部的极光底据此决定是否半透明。
-  static bool get applied => _applied;
+  /// 系统背景当前是否真的生效。根部的极光底据此决定是否半透明。
+  static bool get enabled => _enabled;
+
+  /// 当前窗口是否支持切换（Windows 上找到了主窗口）。
+  static bool get supported => _supported;
 
   // DWMWINDOWATTRIBUTE 的取值，见 dwmapi.h。
   static const int _dwmwaUseImmersiveDarkMode = 20;
@@ -27,16 +34,20 @@ class WindowBackdrop {
   /// DWMSBT_MAINWINDOW：随桌面壁纸着色的 Mica。
   static const int _backdropMica = 2;
 
+  /// DWMSBT_NONE：关闭系统背景。
+  static const int _backdropNone = 1;
+
   /// 与 windows/runner 里的窗口类名保持一致，用来拿到主窗口句柄。
   static const String _windowClass = 'FLUTTER_RUNNER_WIN32_WINDOW';
 
   /// 在 Windows 上给主窗口挂 Mica；其他平台或失败时静默跳过。
   ///
   /// 必须在窗口创建之后调用（`main()` 里即可），失败不会影响应用运行。
-  static void apply({required bool dark}) {
-    if (!Platform.isWindows || _applied) {
+  static void apply({required bool dark, required bool enabled}) {
+    if (!Platform.isWindows || _resolved) {
       return;
     }
+    _resolved = true;
     try {
       final DynamicLibrary user32 = DynamicLibrary.open('user32.dll');
       final DynamicLibrary dwmapi = DynamicLibrary.open('dwmapi.dll');
@@ -55,18 +66,10 @@ class WindowBackdrop {
         return;
       }
 
-      // 负边距 = 把整个客户区扩展进玻璃区域，透明像素才会露出背后的 Mica。
-      final Pointer<_Margins> margins = calloc<_Margins>();
-      margins.ref
-        ..left = -1
-        ..top = -1
-        ..right = -1
-        ..bottom = -1;
-      extendFrame(hwnd, margins);
-      calloc.free(margins);
-
       _hwnd = hwnd;
       _setAttribute = setAttribute;
+      _extendFrame = extendFrame;
+      _supported = true;
       _lastDark = dark;
       _setInt(
         setAttribute,
@@ -74,28 +77,74 @@ class WindowBackdrop {
         _dwmwaUseImmersiveDarkMode,
         dark ? 1 : 0,
       );
-      // 只有 Windows 11 22H2+ 支持这个属性；旧系统会返回错误码，
-      // 此时保持 Dart 侧的不透明背景，看起来和以前一样。
-      _applied = _setInt(
-            setAttribute,
-            hwnd,
-            _dwmwaSystemBackdropType,
-            _backdropMica,
-          ) ==
-          0;
+      _desired = enabled;
+      _applyState();
     } catch (_) {
-      _applied = false;
+      _supported = false;
+      _enabled = false;
     }
+  }
+
+  /// 运行时开关（设置页里的「系统 Mica 背景」）。
+  static void setEnabled(bool enabled) {
+    if (_desired == enabled || !_supported) {
+      return;
+    }
+    _desired = enabled;
+    _applyState();
   }
 
   /// 跟随应用主题切换 Mica 的深浅（同时影响标题栏配色）。
   static void setDark(bool dark) {
     final _SetAttributeDart? setAttribute = _setAttribute;
-    if (!_applied || _hwnd == 0 || setAttribute == null || _lastDark == dark) {
+    if (!_supported || _hwnd == 0 || setAttribute == null || _lastDark == dark) {
       return;
     }
     _lastDark = dark;
     _setInt(setAttribute, _hwnd, _dwmwaUseImmersiveDarkMode, dark ? 1 : 0);
+  }
+
+  static void _applyState() {
+    final _SetAttributeDart? setAttribute = _setAttribute;
+    if (!_supported || _hwnd == 0 || setAttribute == null) {
+      return;
+    }
+    if (_desired) {
+      // 负边距 = 把整个客户区扩展进玻璃区域，透明像素才会露出背后的 Mica。
+      _setMargins(-1, -1, -1, -1);
+      // 只有 Windows 11 22H2+ 支持这个属性；旧系统会返回错误码，
+      // 此时回退到不透明背景，看起来和以前一样。
+      _enabled = _setInt(
+            setAttribute,
+            _hwnd,
+            _dwmwaSystemBackdropType,
+            _backdropMica,
+          ) ==
+          0;
+      if (!_enabled) {
+        _setMargins(0, 0, 1, 0);
+      }
+    } else {
+      _setInt(setAttribute, _hwnd, _dwmwaSystemBackdropType, _backdropNone);
+      // 恢复默认边距，避免窗口在关闭玻璃后留下透明边。
+      _setMargins(0, 0, 1, 0);
+      _enabled = false;
+    }
+  }
+
+  static void _setMargins(int left, int top, int right, int bottom) {
+    final _ExtendFrameDart? extendFrame = _extendFrame;
+    if (extendFrame == null) {
+      return;
+    }
+    final Pointer<_Margins> margins = calloc<_Margins>();
+    margins.ref
+      ..left = left
+      ..top = top
+      ..right = right
+      ..bottom = bottom;
+    extendFrame(_hwnd, margins);
+    calloc.free(margins);
   }
 
   static int _setInt(

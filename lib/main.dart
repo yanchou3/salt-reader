@@ -18,7 +18,10 @@ Future<void> main() async {
   }
   // Windows 上给窗口挂系统 Mica：窗口能透出桌面壁纸的色调。
   // 旧系统或调用失败时静默回退到应用内不透明背景。
-  WindowBackdrop.apply(dark: _resolvedDark());
+  WindowBackdrop.apply(
+    dark: _resolvedDark(),
+    enabled: AppStore.instance.micaEnabled,
+  );
   // 用户切浅色 / 深色时，Mica 与标题栏跟着变。
   AppStore.instance.addListener(_syncWindowMaterial);
   runApp(const RssReaderApp());
@@ -45,5 +48,6 @@ bool _resolvedDark() {
 
 /// AppStore 每次通知都会调用，交给 [WindowBackdrop.setDark] 自己去重。
 void _syncWindowMaterial() {
+  WindowBackdrop.setEnabled(AppStore.instance.micaEnabled);
   WindowBackdrop.setDark(_resolvedDark());
 }
