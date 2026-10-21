@@ -11,6 +11,7 @@ import '../../core/utils/html_utils.dart';
 import '../../core/widgets/font_picker.dart';
 import '../../core/widgets/glass.dart';
 import '../../core/widgets/header_image.dart';
+import '../../core/widgets/smooth_wheel.dart';
 import '../../data/app_store.dart';
 import '../../data/models/article.dart';
 import 'image_viewer.dart';
@@ -35,7 +36,7 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> {
   Widget? _cachedHtml;
 
   /// 正文滚动位置：再次打开同一篇时回到上次读到的地方。
-  final ScrollController _scroll = ScrollController();
+  final SmoothScrollController _scroll = SmoothScrollController();
   Timer? _progressTimer;
 
   /// 图片请求统一用浏览器 UA，并带上 [Referer] 以绕过 CDN 反盗链。

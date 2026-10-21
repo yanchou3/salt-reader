@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimens.dart';
 import '../../core/widgets/placeholder_empty.dart';
+import '../../core/widgets/smooth_wheel.dart';
 import '../../data/app_store.dart';
 import '../../data/models/article.dart';
 import 'article_reader_page.dart';
@@ -319,28 +320,32 @@ class _ArticleListPageState extends State<ArticleListPage> {
     }
     return RefreshIndicator(
       onRefresh: store.refreshAll,
-      child: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.lg,
-          AppSpacing.md,
-          AppSpacing.lg,
-          AppSpacing.navBottom,
-        ),
-        itemCount: articles.length,
-        separatorBuilder: (BuildContext context, int index) =>
-            const SizedBox(height: AppSpacing.md),
-        itemBuilder: (BuildContext context, int index) {
-          final Article article = articles[index];
-          return ArticleCard(
-            article: article,
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => ArticleReaderPage(article: article),
+      child: SmoothWheelArea(
+        builder: (BuildContext context, ScrollController controller) =>
+            ListView.separated(
+          controller: controller,
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.md,
+            AppSpacing.lg,
+            AppSpacing.navBottom,
+          ),
+          itemCount: articles.length,
+          separatorBuilder: (BuildContext context, int index) =>
+              const SizedBox(height: AppSpacing.md),
+          itemBuilder: (BuildContext context, int index) {
+            final Article article = articles[index];
+            return ArticleCard(
+              article: article,
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => ArticleReaderPage(article: article),
+                ),
               ),
-            ),
-            onLongPress: () => showArticleActions(context, article),
-          );
-        },
+              onLongPress: () => showArticleActions(context, article),
+            );
+          },
+        ),
       ),
     );
   }

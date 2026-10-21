@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_dimens.dart';
 import '../../core/widgets/placeholder_empty.dart';
+import '../../core/widgets/smooth_wheel.dart';
 import '../../data/app_store.dart';
 import '../../data/models/article.dart';
 import '../articles/article_reader_page.dart';
@@ -53,30 +54,41 @@ class StarredPage extends StatelessWidget {
                           title: '暂无收藏',
                           description: '在阅读页点右上角的书签，就会收进这里，方便稍后细读。',
                         )
-                      : ListView.separated(
-                          padding: const EdgeInsets.fromLTRB(
-                            AppSpacing.lg,
-                            0,
-                            AppSpacing.lg,
-                            AppSpacing.navBottom,
-                          ),
-                          itemCount: starred.length,
-                          separatorBuilder: (BuildContext context, int index) =>
-                              const SizedBox(height: AppSpacing.md),
-                          itemBuilder: (BuildContext context, int index) {
-                            final Article article = starred[index];
-                            return ArticleCard(
-                              article: article,
-                              onTap: () => Navigator.of(context).push(
-                                MaterialPageRoute<void>(
-                                  builder: (_) =>
-                                      ArticleReaderPage(article: article),
+                      : SmoothWheelArea(
+                          builder:
+                              (
+                                BuildContext context,
+                                ScrollController controller,
+                              ) => ListView.separated(
+                                controller: controller,
+                                padding: const EdgeInsets.fromLTRB(
+                                  AppSpacing.lg,
+                                  0,
+                                  AppSpacing.lg,
+                                  AppSpacing.navBottom,
                                 ),
+                                itemCount: starred.length,
+                                separatorBuilder:
+                                    (BuildContext context, int index) =>
+                                        const SizedBox(height: AppSpacing.md),
+                                itemBuilder: (BuildContext context, int index) {
+                                  final Article article = starred[index];
+                                  return ArticleCard(
+                                    article: article,
+                                    onTap: () => Navigator.of(context).push(
+                                      MaterialPageRoute<void>(
+                                        builder: (_) => ArticleReaderPage(
+                                          article: article,
+                                        ),
+                                      ),
+                                    ),
+                                    onLongPress: () => showArticleActions(
+                                      context,
+                                      article,
+                                    ),
+                                  );
+                                },
                               ),
-                              onLongPress: () =>
-                                  showArticleActions(context, article),
-                            );
-                          },
                         ),
                 ),
               ],
