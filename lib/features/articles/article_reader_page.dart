@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -30,6 +32,10 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> {
   /// 避免收藏、抓取进度等无关通知触发 HtmlWidget 重新解析。
   String? _htmlCacheKey;
   Widget? _cachedHtml;
+
+  /// 正文滚动位置：再次打开同一篇时回到上次读到的地方。
+  final ScrollController _scroll = ScrollController();
+  Timer? _progressTimer;
 
   /// 图片请求统一用浏览器 UA，并带上 [Referer] 以绕过 CDN 反盗链。
   static const String _imageUserAgent =
@@ -101,6 +107,53 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> {
         store.fetchFullText(widget.article);
       }
     });
+
+    _scroll.addListener(_onScroll);
+    // 回到上次读到的位置：等首帧完成布局，才能拿到正确的可滚动高度。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      final double? progress =
+          AppStore.instance.readingProgressOf(widget.article.id);
+      if (progress == null || !_scroll.hasClients) {
+        return;
+      }
+      final double max = _scroll.position.maxScrollExtent;
+      if (max > 0) {
+        _scroll.jumpTo((progress * max).clamp(0.0, max));
+      }
+    });
+  }
+
+  void _onScroll() {
+    _progressTimer?.cancel();
+    _progressTimer = Timer(const Duration(milliseconds: 500), _saveProgress);
+  }
+
+  void _saveProgress() {
+    if (!_scroll.hasClients) {
+      return;
+    }
+    final ScrollPosition position = _scroll.position;
+    final double max = position.maxScrollExtent;
+    if (max <= 0) {
+      return;
+    }
+    unawaited(
+      AppStore.instance.saveReadingProgress(
+        widget.article.id,
+        (position.pixels / max).clamp(0.0, 1.0),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _progressTimer?.cancel();
+    _saveProgress();
+    _scroll.dispose();
+    super.dispose();
   }
 
   @override
@@ -167,6 +220,7 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> {
           body: SafeArea(
             top: false,
             child: SingleChildScrollView(
+              controller: _scroll,
               padding: EdgeInsets.fromLTRB(
                 AppSpacing.xl,
                 MediaQuery.of(context).padding.top +

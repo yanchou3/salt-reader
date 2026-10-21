@@ -44,6 +44,7 @@ class AppStore extends ChangeNotifier {
   static const String _kAutoFullText = 'auto_full_text';
   static const String _kAutoCheckUpdate = 'auto_check_update';
   static const String _kMicaEnabled = 'mica_enabled';
+  static const String _kReadingProgress = 'reading_progress';
   static const int _maxArticles = 300;
 
   final Dio _dio = Dio();
@@ -70,6 +71,9 @@ class AppStore extends ChangeNotifier {
   ThemeMode _themeMode = ThemeMode.system;
   bool _autoFetchFullText = true;
   bool _micaEnabled = true;
+
+  /// 每篇文章上次读到哪儿（0~1 的滚动进度），用来再次打开时回到原处。
+  final Map<String, double> _readingProgress = <String, double>{};
 
   bool _autoCheckUpdate = true;
   UpdateInfo? _availableUpdate;
@@ -338,6 +342,18 @@ class AppStore extends ChangeNotifier {
       _autoFetchFullText = prefs.getBool(_kAutoFullText) ?? true;
       _autoCheckUpdate = prefs.getBool(_kAutoCheckUpdate) ?? true;
       _micaEnabled = prefs.getBool(_kMicaEnabled) ?? true;
+      final String? progress = prefs.getString(_kReadingProgress);
+      if (progress != null && progress.isNotEmpty) {
+        final dynamic decoded = jsonDecode(progress);
+        if (decoded is Map) {
+          for (final MapEntry<dynamic, dynamic> entry in decoded.entries) {
+            if (entry.value is num) {
+              _readingProgress[entry.key.toString()] =
+                  (entry.value as num).toDouble();
+            }
+          }
+        }
+      }
     } catch (error) {
       _lastError = '读取本地数据失败：${_describe(error)}';
     }
@@ -962,6 +978,34 @@ class AppStore extends ChangeNotifier {
     } finally {
       _checkingUpdate = false;
       _bump();
+    }
+  }
+
+  /// 上次读到哪儿（0~1）；没读过或在顶部 / 底部时返回 null。
+  double? readingProgressOf(String articleId) => _readingProgress[articleId];
+
+  /// 记录阅读位置。滚动时高频调用，所以不触发 [notifyListeners]。
+  Future<void> saveReadingProgress(String articleId, double fraction) async {
+    const double min = 0.02;
+    const double max = 0.995;
+    bool changed;
+    if (fraction <= min || fraction >= max) {
+      changed = _readingProgress.remove(articleId) != null;
+    } else {
+      changed = _readingProgress[articleId] != fraction;
+      _readingProgress[articleId] = fraction;
+    }
+    if (!changed) {
+      return;
+    }
+    // 顺手清掉已经不在列表里的文章，避免记录无限增长。
+    final Set<String> known = _articles.map((Article a) => a.id).toSet();
+    _readingProgress.removeWhere((String id, double _) => !known.contains(id));
+    try {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_kReadingProgress, jsonEncode(_readingProgress));
+    } catch (_) {
+      // 阅读位置属于锦上添花，写失败不影响阅读。
     }
   }
 
