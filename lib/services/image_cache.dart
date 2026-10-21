@@ -52,6 +52,16 @@ class ImageDiskCache {
     return File('${dir.path}${Platform.pathSeparator}${_keyOf(url)}.img');
   }
 
+  /// 是否已有缓存（只查文件是否存在，不读取内容）。
+  Future<bool> contains(String url) async {
+    try {
+      final File file = await _fileFor(url);
+      return await file.exists();
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// 读取缓存字节；未命中、内容损坏或读失败时返回 null。
   Future<Uint8List?> read(String url) async {
     try {

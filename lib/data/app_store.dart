@@ -12,6 +12,7 @@ import '../core/app_info.dart';
 import '../core/theme/reader_fonts.dart';
 import '../services/feed_fetcher.dart';
 import '../services/font_library.dart';
+import '../services/image_cache.dart';
 import '../services/opml_service.dart';
 import '../services/readable_service.dart';
 import '../services/updater.dart';
@@ -86,6 +87,14 @@ class AppStore extends ChangeNotifier {
 
   /// 后台正在预抓全文的文章 id（用于阅读页展示「正在准备全文」并防止重复入队）。
   final Set<String> _fullTextInFlight = <String>{};
+
+  /// 正在做收藏归档的文章 id，避免重复下载同一篇的配图。
+  final Set<String> _archiving = <String>{};
+
+  /// 归档配图时统一用浏览器 UA，减少被 CDN 拒绝的概率。
+  static const String _imageUserAgent =
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+      '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
   /// 后台预抓全文的并发上限，避免一次刷新把一堆站点同时打爆。
   static const int _fullTextConcurrency = 3;
@@ -562,6 +571,107 @@ class AppStore extends ChangeNotifier {
     _stateTimestamps[target.id] = DateTime.now().millisecondsSinceEpoch;
     _bump();
     _persist();
+    if (target.starred) {
+      // 收藏即归档：后台补齐全文与配图，之后离线也能完整重读。
+      unawaited(_archiveStarred(target));
+    }
+  }
+
+  /// 收藏后的离线归档：正文只有摘要时抓全文，再把正文里的配图写进磁盘缓存。
+  Future<void> _archiveStarred(Article article) async {
+    if (!_archiving.add(article.id)) {
+      return;
+    }
+    try {
+      final String link = article.link ?? '';
+      if (link.isNotEmpty &&
+          article.summary.length < _summaryFullTextThreshold &&
+          !_fullTextInFlight.contains(article.id)) {
+        _fullTextInFlight.add(article.id);
+        try {
+          final String? html = await _readable.extractMainHtml(link);
+          if (html != null && html.isNotEmpty) {
+            article.updateBody(html);
+          }
+        } catch (_) {
+          // 归档失败不打扰用户，正文仍可在阅读页手动抓取。
+        } finally {
+          article.fullTextAttemptAt = DateTime.now().millisecondsSinceEpoch;
+          _fullTextInFlight.remove(article.id);
+          _bump();
+        }
+      }
+      await _precacheImages(article);
+      await _persist();
+    } finally {
+      _archiving.remove(article.id);
+    }
+  }
+
+  static final RegExp _imageSrcPattern = RegExp(
+    r'''<img[^>]+src\s*=\s*["']([^"']+)["']''',
+    caseSensitive: false,
+  );
+
+  /// 把正文里的配图预先写进 [ImageDiskCache]，最多 20 张。
+  Future<void> _precacheImages(Article article) async {
+    final String body = article.body;
+    if (body.isEmpty) {
+      return;
+    }
+    final String? base = article.link;
+    final Uri? baseUri = base == null ? null : Uri.tryParse(base);
+    final String? referer = baseUri == null
+        ? null
+        : '${baseUri.scheme}://${baseUri.host}/';
+    final Set<String> urls = <String>{};
+    for (final RegExpMatch match in _imageSrcPattern.allMatches(body)) {
+      String src = (match.group(1) ?? '').trim();
+      if (src.isEmpty ||
+          src.startsWith('data:') ||
+          src.startsWith('asset:')) {
+        continue;
+      }
+      final Uri? uri = Uri.tryParse(src);
+      if (uri == null) {
+        continue;
+      }
+      if (!uri.hasScheme && baseUri != null) {
+        src = baseUri.resolveUri(uri).toString();
+      }
+      if (src.startsWith('http')) {
+        urls.add(src);
+      }
+      if (urls.length >= 20) {
+        break;
+      }
+    }
+    for (final String url in urls) {
+      if (await ImageDiskCache.instance.contains(url)) {
+        continue;
+      }
+      try {
+        final Map<String, String> headers = <String, String>{
+          'User-Agent': _imageUserAgent,
+        };
+        if (referer != null) {
+          headers['Referer'] = referer;
+        }
+        final Response<List<int>> response = await _dio.get<List<int>>(
+          url,
+          options: Options(
+            responseType: ResponseType.bytes,
+            headers: headers,
+          ),
+        );
+        final List<int>? data = response.data;
+        if (data != null && data.isNotEmpty) {
+          ImageDiskCache.instance.save(url, Uint8List.fromList(data));
+        }
+      } catch (_) {
+        // 单张图失败就跳过，不影响其余图片的归档。
+      }
+    }
   }
 
   void markAllRead() {
