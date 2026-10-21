@@ -13,6 +13,7 @@ import '../../core/widgets/glass.dart';
 import '../../core/widgets/header_image.dart';
 import '../../data/app_store.dart';
 import '../../data/models/article.dart';
+import 'image_viewer.dart';
 
 /// 文章阅读页：椒盐风格的正文排版（可调字号 / 行距 / 栏宽）。
 class ArticleReaderPage extends StatefulWidget {
@@ -68,6 +69,21 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> {
         referer: _refererOf(baseUrl),
         userAgent: _imageUserAgent,
       ),
+      // 点正文里的图片 → 全屏可缩放查看。
+      onTapImage: (ImageMetadata image) {
+        final String? url =
+            image.sources.isEmpty ? null : image.sources.first.url;
+        if (url == null || url.isEmpty) {
+          return;
+        }
+        unawaited(
+          showImageViewer(
+            context,
+            url: url,
+            referer: _refererOf(baseUrl),
+          ),
+        );
+      },
     );
     _htmlCacheKey = key;
     _cachedHtml = widget;
