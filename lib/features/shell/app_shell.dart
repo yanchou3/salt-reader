@@ -46,7 +46,9 @@ class _AppShellState extends State<AppShell> {
                 child: RepaintBoundary(
                   child: GlassContainer(
                     borderRadius: BorderRadius.circular(AppRadius.xl),
-                    blurSigma: GlassTokens.blurChrome,
+                    // 导航条下沿每帧都有列表滚动，实时模糊会拖垮帧率；
+                    // 用略更实的半透明底 + 迎光高光保留玻璃观感。
+                    blur: false,
                     tintAlpha: GlassTokens.alphaChrome,
                     child: NavigationBar(
                       backgroundColor: Colors.transparent,

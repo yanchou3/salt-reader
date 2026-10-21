@@ -469,6 +469,9 @@ class _GlassGroup extends StatelessWidget {
   Widget build(BuildContext context) {
     return GlassContainer(
       borderRadius: BorderRadius.circular(AppRadius.lg),
+      // 面板背后是静态的极光底，不需要每帧重新采样模糊；
+      // 半透明底色本身已经足够「玻璃」。
+      blur: false,
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.xs,
         vertical: AppSpacing.xs,

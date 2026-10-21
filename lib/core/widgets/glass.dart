@@ -12,13 +12,17 @@ class GlassTokens {
   GlassTokens._();
 
   /// chrome 层（导航条、AppBar）的模糊半径。
-  static const double blurChrome = 24;
+  ///
+  /// 这两个栏是滚动时每帧都要重新模糊的，半径越大开销呈平方增长；
+  /// 12 已经足够柔化透出的内容，再大就开始明显掉帧。
+  static const double blurChrome = 12;
 
   /// 浮层（对话框、底部面板）的模糊半径：更厚，需要更强的模糊。
-  static const double blurSheet = 34;
+  /// 浮层是静态的，只在打开时算一次，可以比 chrome 更大。
+  static const double blurSheet = 20;
 
   /// 面板 / 分组的模糊半径。
-  static const double blurPanel = 18;
+  static const double blurPanel = 12;
 
   /// 玻璃底色：浅色偏白、深色偏黑。alpha 决定「透」的程度。
   static Color tint(Brightness brightness, double alpha) {
@@ -44,7 +48,10 @@ class GlassTokens {
       brightness == Brightness.dark ? AppShadows.softDark : AppShadows.soft;
 
   /// chrome 层底色（导航条 / AppBar）。
-  static const double alphaChrome = 0.62;
+  ///
+  /// 这两处不做实时模糊（滚动时太贵），所以底色要更实一点，
+  /// 保证从下面滚过的文字不会干扰栏上的内容。
+  static const double alphaChrome = 0.82;
 
   /// 浮层底色（对话框 / 底部面板）：更实一点，保证浮层上的字清楚。
   static const double alphaSheet = 0.74;
@@ -295,10 +302,11 @@ class GlassAppBar extends StatelessWidget implements PreferredSizeWidget {
         ),
         child: const GlassContainer(
           borderRadius: BorderRadius.zero,
-          blurSigma: GlassTokens.blurChrome,
           tintAlpha: GlassTokens.alphaChrome,
           showBorder: false,
           showShadow: false,
+          // 顶部栏同样每帧都有正文从下面滚过，实时模糊的代价远大于收益。
+          blur: false,
         ),
       ),
     );
