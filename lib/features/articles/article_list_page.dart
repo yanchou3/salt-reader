@@ -73,6 +73,8 @@ class _ArticleListPageState extends State<ArticleListPage> {
             filters.contains(_filter) ? _filter : _allFilter;
         final String query = _query.trim().toLowerCase();
         final List<Article> articles = _filtered(store, activeFilter, query);
+        final int unreadCount =
+            articles.where((Article a) => !a.read).length;
 
         return Scaffold(
           body: SafeArea(
@@ -125,9 +127,19 @@ class _ArticleListPageState extends State<ArticleListPage> {
                       ),
                       if (articles.isNotEmpty)
                         IconButton(
-                          onPressed: store.markAllRead,
+                          onPressed: unreadCount == 0
+                              ? null
+                              : () {
+                                  store.markReadAll(articles);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content:
+                                          Text('已把 $unreadCount 篇标为已读'),
+                                    ),
+                                  );
+                                },
                           icon: const Icon(Icons.done_all_rounded),
-                          tooltip: '全部已读',
+                          tooltip: '把当前列表标为已读',
                         ),
                       IconButton(
                         onPressed: store.loading || !store.hasFeeds

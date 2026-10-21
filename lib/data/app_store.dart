@@ -674,9 +674,20 @@ class AppStore extends ChangeNotifier {
     }
   }
 
-  void markAllRead() {
-    for (final Article article in _articles) {
+  /// 只把传入的这一批文章标为已读（通常是当前筛选 / 搜索结果）。
+  void markReadAll(Iterable<Article> articles) {
+    final int now = DateTime.now().millisecondsSinceEpoch;
+    bool changed = false;
+    for (final Article article in articles) {
+      if (article.read) {
+        continue;
+      }
       article.read = true;
+      _stateTimestamps[article.id] = now;
+      changed = true;
+    }
+    if (!changed) {
+      return;
     }
     _bump();
     _persist();
