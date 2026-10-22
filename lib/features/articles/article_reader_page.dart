@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
+import 'package:html/dom.dart' as dom;
+import 'package:html/parser.dart' as html_parser;
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/theme/app_colors.dart';
@@ -30,10 +32,9 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> {
   String? _renderedSource;
   String? _renderedHtml;
 
-  /// 已解析的正文组件缓存：只要正文 / 链接 / 排版不变就复用，
-  /// 避免收藏、抓取进度等无关通知触发 HtmlWidget 重新解析。
-  String? _htmlCacheKey;
-  Widget? _cachedHtml;
+  /// 已解析的正文块缓存：正文 / 链接不变时复用，避免无关通知重新拆块。
+  String? _blocksSource;
+  List<String> _blocks = const <String>[];
 
   /// 正文滚动位置：再次打开同一篇时回到上次读到的地方。
   final SmoothScrollController _scroll = SmoothScrollController();
@@ -57,14 +58,9 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> {
     return '${uri.scheme}://${uri.host}/';
   }
 
-  Widget _htmlWidget(String body, String? baseUrl, TextStyle style) {
-    final String key = '${body.hashCode}|${baseUrl ?? ''}'
-        '|${style.fontSize}|${style.height}|${style.fontFamily ?? ''}';
-    if (_htmlCacheKey == key && _cachedHtml != null) {
-      return _cachedHtml!;
-    }
-    final Widget widget = HtmlWidget(
-      _renderBody(body, baseUrl),
+  Widget _blockWidget(String html, String? baseUrl, TextStyle style) {
+    return HtmlWidget(
+      html,
       textStyle: style,
       factoryBuilder: () => HeaderImageWidgetFactory(
         referer: _refererOf(baseUrl),
@@ -86,9 +82,72 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> {
         );
       },
     );
-    _htmlCacheKey = key;
-    _cachedHtml = widget;
-    return widget;
+  }
+
+  /// 把正文拆成 HTML 顶层块，交给 ListView 逐块懒构建。
+  ///
+  /// 整篇一次性交给 HtmlWidget 时，长文要在一帧里排版上千个组件，
+  /// 打开文章会卡住 100ms 以上；拆块后首帧只需要排当前视口附近的内容。
+  /// 块数太少（或解析失败）时退回整篇渲染，保证版式不变。
+  List<String> _blocksOf(String body, String? baseUrl) {
+    final String html = _renderBody(body, baseUrl);
+    if (_blocksSource == html) {
+      return _blocks;
+    }
+    _blocksSource = html;
+    _blocks = _splitBlocks(html);
+    return _blocks;
+  }
+
+  static const Set<String> _wrapperTags = <String>{
+    'div',
+    'section',
+    'article',
+    'main',
+    'center',
+  };
+
+  static List<String> _splitBlocks(String html) {
+    try {
+      final dom.Document document = html_parser.parse(html);
+      final dom.Element? root = document.body;
+      if (root == null) {
+        return <String>[html];
+      }
+      // 剥掉只套了一层的容器（不少源整篇包在 <div> 里），
+      // 但容器自带 style 时保留，避免丢掉对齐 / 间距。
+      dom.Element current = root;
+      while (current.nodes.length == 1) {
+        final dom.Node only = current.nodes.first;
+        if (only is! dom.Element) {
+          break;
+        }
+        if (!_wrapperTags.contains(only.localName)) {
+          break;
+        }
+        if (only.attributes.containsKey('style')) {
+          break;
+        }
+        current = only;
+      }
+      final List<String> blocks = <String>[];
+      for (final dom.Node node in current.nodes) {
+        if (node is dom.Element) {
+          final String piece = node.outerHtml.trim();
+          if (piece.isNotEmpty) {
+            blocks.add(piece);
+          }
+        } else if (node is dom.Text) {
+          final String text = node.text.trim();
+          if (text.isNotEmpty) {
+            blocks.add(text);
+          }
+        }
+      }
+      return blocks.length >= 3 ? blocks : <String>[html];
+    } catch (_) {
+      return <String>[html];
+    }
   }
 
   /// 渲染前把相对路径补全为绝对路径（图片 / 链接），并按 body 做缓存。
@@ -192,6 +251,7 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> {
           height: store.readerLineHeight,
           fontFamily: store.activeFontFamily,
         );
+        final List<String> blocks = _blocksOf(body, article.link);
 
         return Scaffold(
           // 正文从顶部延伸到玻璃 AppBar 下方，滚动时文字从玻璃后透出。
@@ -236,68 +296,84 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> {
           ),
           body: SafeArea(
             top: false,
-            child: SingleChildScrollView(
-              controller: _scroll,
-              padding: EdgeInsets.fromLTRB(
-                AppSpacing.xl,
-                MediaQuery.of(context).padding.top +
-                    kToolbarHeight +
-                    AppSpacing.sm,
-                AppSpacing.xl,
-                AppSpacing.xxl,
-              ),
-              child: Center(
-                child: ConstrainedBox(
-                  constraints:
-                      BoxConstraints(maxWidth: store.readerMaxWidth),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(article.title, style: theme.textTheme.displaySmall),
-                      const SizedBox(height: AppSpacing.md),
-                      Row(
-                        children: <Widget>[
-                          Flexible(
-                            child: Text(
-                              article.feedTitle,
-                              style: theme.textTheme.labelMedium,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: AppSpacing.sm,
-                            ),
-                            child: Text('·', style: TextStyle(color: subtle)),
-                          ),
-                          Text(
-                            relativeTime(article.published),
-                            style: theme.textTheme.labelSmall,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: AppSpacing.xl),
-                      Divider(color: theme.colorScheme.outline),
-                      const SizedBox(height: AppSpacing.xl),
-                      if (_shouldOfferFullText(article))
-                        _FullTextHint(
-                          fetching: store.fetchingFullText,
-                          prefetching:
-                              store.isPrefetchingFullText(article.id),
-                          onFetch: () => _fetchFull(store, article),
-                          onOpen: () => _openInBrowser(context, article.link!),
-                        ),
-                      if (body.isEmpty)
-                        Text(
-                          '这个订阅源没有提供正文内容。',
-                          style:
-                              theme.textTheme.bodyMedium?.copyWith(color: subtle),
-                        )
-                      else
-                        _htmlWidget(body, article.link, bodyStyle),
-                    ],
+            child: Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: store.readerMaxWidth),
+                child: ListView.builder(
+                  controller: _scroll,
+                  padding: EdgeInsets.fromLTRB(
+                    AppSpacing.xl,
+                    MediaQuery.of(context).padding.top +
+                        kToolbarHeight +
+                        AppSpacing.sm,
+                    AppSpacing.xl,
+                    AppSpacing.xxl,
                   ),
+                  // 正文按 HTML 顶层块拆开、交给 ListView 懒构建：
+                  // 打开长文时只排版首屏十几块，不再一次性卡住上百毫秒。
+                  itemCount: blocks.length + 1,
+                  itemBuilder: (BuildContext context, int index) {
+                    if (index == 0) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            article.title,
+                            style: theme.textTheme.displaySmall,
+                          ),
+                          const SizedBox(height: AppSpacing.md),
+                          Row(
+                            children: <Widget>[
+                              Flexible(
+                                child: Text(
+                                  article.feedTitle,
+                                  style: theme.textTheme.labelMedium,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: AppSpacing.sm,
+                                ),
+                                child: Text(
+                                  '·',
+                                  style: TextStyle(color: subtle),
+                                ),
+                              ),
+                              Text(
+                                relativeTime(article.published),
+                                style: theme.textTheme.labelSmall,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: AppSpacing.xl),
+                          Divider(color: theme.colorScheme.outline),
+                          const SizedBox(height: AppSpacing.xl),
+                          if (_shouldOfferFullText(article))
+                            _FullTextHint(
+                              fetching: store.fetchingFullText,
+                              prefetching:
+                                  store.isPrefetchingFullText(article.id),
+                              onFetch: () => _fetchFull(store, article),
+                              onOpen: () =>
+                                  _openInBrowser(context, article.link!),
+                            ),
+                          if (body.isEmpty)
+                            Text(
+                              '这个订阅源没有提供正文内容。',
+                              style: theme.textTheme.bodyMedium
+                                  ?.copyWith(color: subtle),
+                            ),
+                        ],
+                      );
+                    }
+                    return _blockWidget(
+                      blocks[index - 1],
+                      article.link,
+                      bodyStyle,
+                    );
+                  },
                 ),
               ),
             ),

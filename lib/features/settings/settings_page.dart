@@ -486,6 +486,9 @@ class _GlassGroup extends StatelessWidget {
       // 面板背后是静态的极光底，不需要每帧重新采样模糊；
       // 半透明底色本身已经足够「玻璃」。
       blur: false,
+      // 大半径柔影在集显上要逐帧模糊，切到设置页会明显卡一下；
+      // 这里的底色已经能勾出边界，去掉投影几乎看不出差别。
+      showShadow: false,
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.xs,
         vertical: AppSpacing.xs,

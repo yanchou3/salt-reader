@@ -34,7 +34,17 @@ class _AppShellState extends State<AppShell> {
       // 这样正文能滚到它后面透出来，点击命中区域也始终明确。
       body: Stack(
         children: <Widget>[
-          IndexedStack(index: _index, children: _pages),
+          // 把页面层和导航条分开：导航条切换动画每帧重绘时，
+          // 整页内容不用跟着重新栅格化。
+          RepaintBoundary(
+            child: IndexedStack(
+              index: _index,
+              children: <Widget>[
+                for (int i = 0; i < _pages.length; i++)
+                  TickerMode(enabled: i == _index, child: _pages[i]),
+              ],
+            ),
+          ),
           Positioned(
             left: AppSpacing.lg,
             right: AppSpacing.lg,
@@ -53,6 +63,7 @@ class _AppShellState extends State<AppShell> {
                     child: NavigationBar(
                       backgroundColor: Colors.transparent,
                       elevation: 0,
+                      animationDuration: Duration.zero,
                       selectedIndex: _index,
                       onDestinationSelected: (int i) =>
                           setState(() => _index = i),

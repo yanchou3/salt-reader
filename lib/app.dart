@@ -60,7 +60,8 @@ class _RssReaderAppState extends State<RssReaderApp> {
       builder: (BuildContext context, Widget? navigator) => Stack(
         fit: StackFit.expand,
         children: <Widget>[
-          AuroraBackground(translucent: _translucent),
+          // 极光底是静态的，单独缓存一层，页面切换时不必重新绘制。
+          RepaintBoundary(child: AuroraBackground(translucent: _translucent)),
           ?navigator,
         ],
       ),

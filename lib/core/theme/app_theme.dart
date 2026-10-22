@@ -64,9 +64,11 @@ class AppTheme {
       pageTransitionsTheme: const PageTransitionsTheme(
         builders: <TargetPlatform, PageTransitionsBuilder>{
           TargetPlatform.android: FadeForwardsPageTransitionsBuilder(),
-          TargetPlatform.windows: FadeForwardsPageTransitionsBuilder(),
-          TargetPlatform.linux: FadeForwardsPageTransitionsBuilder(),
-          TargetPlatform.macOS: FadeForwardsPageTransitionsBuilder(),
+          // 桌面端用纯位移过渡：整页透明度的 saveLayer 在集显上会让
+          // 返回上一页时每帧多花十几毫秒，明显卡顿。
+          TargetPlatform.windows: _SlidePageTransitionsBuilder(),
+          TargetPlatform.linux: _SlidePageTransitionsBuilder(),
+          TargetPlatform.macOS: _SlidePageTransitionsBuilder(),
         },
       ),
       appBarTheme: AppBarTheme(
@@ -168,6 +170,36 @@ class AppTheme {
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(foregroundColor: AppColors.accent),
       ),
+    );
+  }
+}
+
+/// 桌面端的页面过渡：只做轻微横向位移，不加透明度。
+///
+/// 带透明度的过渡会给整页套一层 saveLayer；在集成显卡上实测，
+/// 从阅读页返回列表时每帧要多花 10ms 以上，正好卡在 60fps 预算上。
+class _SlidePageTransitionsBuilder extends PageTransitionsBuilder {
+  const _SlidePageTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    if (route.isFirst) {
+      return child;
+    }
+    return SlideTransition(
+      position: Tween<Offset>(
+        begin: const Offset(0.035, 0),
+        end: Offset.zero,
+      ).animate(
+        CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+      ),
+      child: child,
     );
   }
 }
